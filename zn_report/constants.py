@@ -2,17 +2,39 @@
 
 from __future__ import annotations
 
-import random
+DEFAULT_SEED: int = 42
+
+# Branding & style defaults
+DEFAULT_TITLE = "Zscaler Incident Report"
+DEFAULT_FONT_FAMILY = "Inter, Arial, sans-serif"
+DEFAULT_PALETTE = {
+    "primary": "#2F6FE4",
+    "secondary": "#6C757D",
+    "accent": "#F4B400",
+    "muted": "#D0D3D4",
+    "categorical": [
+        "#2F6FE4",
+        "#00A1D6",
+        "#7CB342",
+        "#F4B400",
+        "#E67E22",
+        "#8E44AD",
+        "#C0392B",
+    ],
+}
 
 
-def seed_rng(seed: int | float | str | bytes | bytearray | None = None) -> None:
-    """Seed the random number generator.
+def apply_global_seed(seed: int = DEFAULT_SEED) -> None:
+    """Seeds both random and (if available) numpy.random.
 
-    Args:
-        seed: The seed to use for the RNG. If None, the RNG is not seeded.
+    Import numpy inside the function; if not installed, skip silently.
     """
-    if seed is not None:
-        random.seed(seed)
+    import random
 
+    random.seed(seed)
+    try:
+        import numpy as np
 
-# TODO: Add other constants as needed.
+        np.random.seed(seed)
+    except ImportError:
+        pass

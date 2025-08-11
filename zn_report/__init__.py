@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from . import constants
+from .constants import apply_global_seed
 
-constants.seed_rng()
+apply_global_seed()
