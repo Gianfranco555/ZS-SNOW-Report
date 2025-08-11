@@ -1,0 +1,10 @@
+# TODO: Add example settings for the Zscaler and ServiceNow APIs.
+zscaler:
+  cloud: "zscaler.net"
+  username: "your_username"
+  password: "your_password"
+
+servicenow:
+  instance: "your_instance.service-now.com"
+  username: "your_username"
+  password: "your_password"
