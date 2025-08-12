@@ -51,8 +51,13 @@ class Layout:
 class Summary:
     """Summary configuration."""
 
+    class Provider(str, Enum):
+        """Providers for summary generation."""
+
+        LOCAL = "local"
+
     enabled: bool = True
-    provider: str = "local"
+    provider: Provider = Provider.LOCAL
     max_chars: int = 700
 
 
