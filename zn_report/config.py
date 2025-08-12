@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from copy import deepcopy
+from dataclasses import asdict, dataclass
+from enum import Enum
 from typing import Any
 
 from zn_report.constants import (
@@ -10,6 +12,10 @@ from zn_report.constants import (
     DEFAULT_PALETTE,
     DEFAULT_TITLE,
 )
+
+
+class ConfigurationError(ValueError):
+    """Custom exception for configuration errors."""
 
 
 @dataclass
@@ -29,6 +35,17 @@ class Palette:
     accent: str
     muted: str
     categorical: list[str]
+
+    def __post_init__(self):
+        """Validate palette configuration."""
+        if not (
+            self.categorical
+            and isinstance(self.categorical, list)
+            and all(isinstance(s, str) for s in self.categorical)
+        ):
+            raise ValueError(
+                "style.palette.categorical must be a non-empty list of strings"
+            )
 
 
 @dataclass
@@ -54,11 +71,18 @@ class Summary:
     class Provider(str, Enum):
         """Providers for summary generation."""
 
+        NONE = "none"
         LOCAL = "local"
+        OPENAI = "openai"
 
     enabled: bool = True
     provider: Provider = Provider.LOCAL
     max_chars: int = 700
+
+    def __post_init__(self):
+        """Validate summary configuration."""
+        if self.max_chars <= 0:
+            raise ValueError("summary.max_chars must be > 0")
 
 
 @dataclass
@@ -89,16 +113,71 @@ def to_dict(cfg: Config) -> dict[str, Any]:
     return asdict(cfg)
 
 
-def load_config(path: str) -> dict[str, Any]:
-    """Load the configuration from a YAML file.
+def deep_merge(base: dict, override: dict) -> dict:
+    """Merge two dictionaries recursively.
 
-    Args:
-        path: The path to the YAML configuration file.
-
-    Returns:
-        A dictionary containing the configuration.
+    Lists are replaced, scalars are overwritten, and dicts are merged.
     """
-    # TODO: Implement YAML parsing.
-    # For now, this is a stub that returns an empty dict.
-    print(f"TODO: Load config from {path}")
-    return {}
+    result = deepcopy(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def coerce_config(d: dict) -> Config:
+    """Convert a merged dict into typed dataclasses.
+
+    Raise ConfigurationError on missing/invalid fields.
+    """
+    # No deepcopy needed, as load_config provides a fresh dict.
+    cfg = d
+
+    # --- Main Coercion and Construction ---
+    try:
+        # Validate that nested sections are dictionaries
+        for section in ["branding", "layout", "style", "summary"]:
+            if not isinstance(cfg.get(section), dict):
+                raise ConfigurationError(
+                    f"Config section '{section}' must be a dictionary."
+                )
+
+        if not isinstance(cfg.get("style", {}).get("palette"), dict):
+            raise ConfigurationError(
+                "Config section 'style.palette' must be a dictionary."
+            )
+
+        # Coerce provider string to Enum before passing to constructor
+        summary_cfg = cfg["summary"]
+        summary_cfg["provider"] = Summary.Provider(summary_cfg["provider"])
+
+        # Let dataclass constructors handle the rest.
+        # __post_init__ will run validation.
+        return Config(
+            title=cfg["title"],
+            branding=Branding(**cfg["branding"]),
+            style=Style(
+                palette=Palette(**cfg["style"]["palette"]),
+                font_family=cfg["style"]["font_family"],
+            ),
+            layout=Layout(**cfg["layout"]),
+            summary=Summary(**cfg["summary"]),
+        )
+    except (ValueError, TypeError, KeyError) as e:
+        # Catch validation errors from __post_init__ or construction errors
+        raise ConfigurationError(f"Invalid configuration: {e}") from e
+
+
+def load_config(settings: dict | None = None) -> Config:
+    """If None, return DEFAULT_CONFIG.
+
+    Else, deep_merge(to_dict(DEFAULT_CONFIG), settings) → coerce_config.
+    """
+    if settings is None:
+        return DEFAULT_CONFIG
+
+    base_config = to_dict(DEFAULT_CONFIG)
+    merged_config = deep_merge(base_config, settings)
+    return coerce_config(merged_config)
