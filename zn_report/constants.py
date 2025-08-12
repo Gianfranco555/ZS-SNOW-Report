@@ -4,6 +4,21 @@ from __future__ import annotations
 
 DEFAULT_SEED: int = 42
 
+# Data loading
+REQUIRED_HEADERS: frozenset[str] = frozenset(
+    {
+        "sys_tags",
+        "comments",
+        "work_notes",
+        "assigned_to",
+        "opened_at",
+        "state",
+        "resolved_at",
+        "u_original_assignment_group",
+        "close_code",
+    }
+)
+
 # Branding & style defaults
 DEFAULT_TITLE = "Zscaler Incident Report"
 DEFAULT_FONT_FAMILY = "Inter, Arial, sans-serif"
