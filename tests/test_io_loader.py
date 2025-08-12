@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 import pandas as pd
 import pytest
@@ -36,7 +37,6 @@ class TestIoLoader(unittest.TestCase):
 
     def tearDown(self):
         """Tear down test files."""
-        import shutil
         shutil.rmtree(self.test_dir)
 
     def test_read_csv_headers_valid(self):
@@ -48,14 +48,11 @@ class TestIoLoader(unittest.TestCase):
         self.assertEqual(headers, self.missing_headers)
 
     def test_read_csv_headers_empty(self):
-        with self.assertRaises(pd.errors.EmptyDataError):
+        with pytest.raises(pd.errors.EmptyDataError):
             read_csv_headers(self.empty_csv_path)
 
     def test_validate_headers_valid(self):
-        try:
-            validate_headers(self.valid_headers)
-        except MissingHeadersError:
-            self.fail("validate_headers() raised MissingHeadersError unexpectedly!")
+        validate_headers(self.valid_headers)
 
     def test_validate_headers_invalid(self):
         with pytest.raises(MissingHeadersError) as excinfo:
@@ -73,5 +70,5 @@ class TestIoLoader(unittest.TestCase):
             ensure_headers_ok(self.invalid_csv_path)
 
     def test_ensure_headers_ok_file_not_found(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             ensure_headers_ok("non_existent_file.csv")

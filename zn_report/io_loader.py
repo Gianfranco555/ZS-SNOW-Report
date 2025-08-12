@@ -25,9 +25,9 @@ def validate_headers(headers: list[str]) -> None:
     Raises:
         MissingHeadersError: If any required headers are missing.
     """
-    missing = [h for h in sorted(list(REQUIRED_HEADERS)) if h not in headers]
+    missing = REQUIRED_HEADERS - set(headers)
     if missing:
-        raise MissingHeadersError(missing)
+        raise MissingHeadersError(list(missing))
 
 
 def ensure_headers_ok(path: str, encoding: str = "utf-8") -> list[str]:
