@@ -1,9 +1,9 @@
 import pandas as pd
-from typing import Iterator, Union
+from typing import Iterator
 
 from zn_report.exceptions import MissingHeadersError
 
-REQUIRED_HEADERS: tuple[str, ...] = (
+REQUIRED_HEADERS: frozenset[str] = frozenset({
     "sys_tags",
     "comments",
     "work_notes",
@@ -13,7 +13,7 @@ REQUIRED_HEADERS: tuple[str, ...] = (
     "resolved_at",
     "u_original_assignment_group",
     "close_code",
-)
+})
 
 
 def read_csv_headers(path: str, encoding: str = "utf-8") -> list[str]:
@@ -35,5 +35,5 @@ def load_csv(
     encoding: str = "utf-8",
     usecols: list[str] | None = None,
     chunksize: int | None = None,
-) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
+) -> pd.DataFrame | Iterator[pd.DataFrame]:
     ...
