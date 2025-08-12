@@ -1,10 +1,42 @@
-# TODO: Add example settings for the Zscaler and ServiceNow APIs.
-zscaler:
-  cloud: "zscaler.net"
-  username: "your_username"
-  password: "your_password"
+# "title" is the main title of the report.
+title: "Zscaler Incident Report"
 
-servicenow:
-  instance: "your_instance.service-now.com"
-  username: "your_username"
-  password: "your_password"
+# "branding" allows for customization of the report's appearance.
+branding:
+  # "logo_path" is the path to the company logo.
+  # This is optional; if not provided, no logo will be displayed.
+  # The path can be relative to the project root.
+  logo_path: "./brand/logo.png"
+  # "footer" is the text that appears at the bottom of the report.
+  # This is optional; if not provided, no footer will be displayed.
+  footer: "Confidential – Zscaler Operations"
+
+# "style" defines the color palette and fonts for the report.
+style:
+  # "palette" sets the colors used in the report.
+  palette:
+    primary: "#2F6FE4"
+    secondary: "#6C757D"
+    accent: "#F4B400"
+    muted: "#D0D3D4"
+    # "categorical" is a list of colors for charts.
+    categorical: ["#2F6FE4","#00A1D6","#7CB342","#F4B400","#E67E22","#8E44AD","#C0392B"]
+  # "font_family" specifies the font to be used in the report.
+  font_family: "Inter, Arial, sans-serif"
+
+# "layout" controls which sections of the report are displayed.
+layout:
+  # "show_resolution_codes_chart" toggles the visibility of the resolution codes chart.
+  show_resolution_codes_chart: true
+  # "show_top_tags_chart" toggles the visibility of the top tags chart.
+  show_top_tags_chart: true
+
+# "summary" configures the automated summary generation.
+summary:
+  # "enabled" toggles the summary feature on or off.
+  enabled: true
+  # "provider" selects the summary generation engine.
+  # Can be "none", "local", or "openai".
+  provider: "local"
+  # "max_chars" sets the maximum length of the generated summary.
+  max_chars: 700
