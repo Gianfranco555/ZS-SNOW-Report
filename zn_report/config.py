@@ -84,7 +84,7 @@ DEFAULT_CONFIG = Config(
 )
 
 
-def to_dict(cfg: Config) -> dict:
+def to_dict(cfg: Config) -> dict[str, Any]:
     """Converts a Config object to a dictionary."""
     return asdict(cfg)
 
