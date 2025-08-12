@@ -14,6 +14,10 @@ from zn_report.constants import (
 )
 
 
+class ConfigurationError(ValueError):
+    """Custom exception for configuration errors."""
+
+
 @dataclass
 class Branding:
     """Branding configuration."""
@@ -31,6 +35,17 @@ class Palette:
     accent: str
     muted: str
     categorical: list[str]
+
+    def __post_init__(self):
+        """Validate palette configuration."""
+        if not (
+            self.categorical
+            and isinstance(self.categorical, list)
+            and all(isinstance(s, str) for s in self.categorical)
+        ):
+            raise ValueError(
+                "style.palette.categorical must be a non-empty list of strings"
+            )
 
 
 @dataclass
@@ -63,6 +78,11 @@ class Summary:
     enabled: bool = True
     provider: Provider = Provider.LOCAL
     max_chars: int = 700
+
+    def __post_init__(self):
+        """Validate summary configuration."""
+        if self.max_chars <= 0:
+            raise ValueError("summary.max_chars must be > 0")
 
 
 @dataclass
@@ -110,39 +130,31 @@ def deep_merge(base: dict, override: dict) -> dict:
 def coerce_config(d: dict) -> Config:
     """Convert a merged dict into typed dataclasses.
 
-    Raise ValueError on missing/invalid fields.
+    Raise ConfigurationError on missing/invalid fields.
     """
-    cfg = deepcopy(d)
+    # No deepcopy needed, as load_config provides a fresh dict.
+    cfg = d
 
-    # --- Validation and Coercion ---
+    # --- Main Coercion and Construction ---
     try:
-        summary_cfg = cfg["summary"]
-        provider_str = summary_cfg["provider"]
-        summary_cfg["provider"] = Summary.Provider(provider_str)
+        # Validate that nested sections are dictionaries
+        for section in ["branding", "layout", "style", "summary"]:
+            if not isinstance(cfg.get(section), dict):
+                raise ConfigurationError(
+                    f"Config section '{section}' must be a dictionary."
+                )
 
-        if summary_cfg["max_chars"] <= 0:
-            raise ValueError("summary.max_chars must be > 0")
-    except ValueError as e:
-        raise ValueError(f"Invalid summary configuration: {e}")
-    except KeyError as e:
-        raise ValueError(f"Missing key in summary configuration: {e}")
-
-    try:
-        palette_cfg = cfg["style"]["palette"]
-        categorical = palette_cfg["categorical"]
-        if not (
-            categorical
-            and isinstance(categorical, list)
-            and all(isinstance(s, str) for s in categorical)
-        ):
-            raise ValueError(
-                "style.palette.categorical must be a non-empty list of strings"
+        if not isinstance(cfg.get("style", {}).get("palette"), dict):
+            raise ConfigurationError(
+                "Config section 'style.palette' must be a dictionary."
             )
-    except KeyError as e:
-        raise ValueError(f"Missing key in style configuration: {e}")
 
-    # --- Dataclass Construction ---
-    try:
+        # Coerce provider string to Enum before passing to constructor
+        summary_cfg = cfg["summary"]
+        summary_cfg["provider"] = Summary.Provider(summary_cfg["provider"])
+
+        # Let dataclass constructors handle the rest.
+        # __post_init__ will run validation.
         return Config(
             title=cfg["title"],
             branding=Branding(**cfg["branding"]),
@@ -153,10 +165,9 @@ def coerce_config(d: dict) -> Config:
             layout=Layout(**cfg["layout"]),
             summary=Summary(**cfg["summary"]),
         )
-    except (TypeError, KeyError) as e:
-        raise ValueError(
-            f"Configuration is missing required fields or has unexpected fields: {e}"
-        )
+    except (ValueError, TypeError, KeyError) as e:
+        # Catch validation errors from __post_init__ or construction errors
+        raise ConfigurationError(f"Invalid configuration: {e}") from e
 
 
 def load_config(settings: dict | None = None) -> Config:
