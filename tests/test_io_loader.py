@@ -10,6 +10,7 @@ from zn_report.io_loader import (
     read_csv_headers,
     validate_headers,
     ensure_headers_ok,
+    load_csv,
 )
 from zn_report.exceptions import MissingHeadersError
 from zn_report.constants import REQUIRED_HEADERS
@@ -27,6 +28,7 @@ class TestIoLoader(unittest.TestCase):
         self.valid_csv_path = os.path.join(self.test_dir, "valid.csv")
         self.invalid_csv_path = os.path.join(self.test_dir, "invalid.csv")
         self.empty_csv_path = os.path.join(self.test_dir, "empty.csv")
+        self.data_csv_path = os.path.join(self.test_dir, "data.csv")
 
         pd.DataFrame(columns=self.valid_headers).to_csv(
             self.valid_csv_path, index=False
@@ -36,6 +38,20 @@ class TestIoLoader(unittest.TestCase):
         )
         with open(self.empty_csv_path, "w") as f:
             f.write("")
+
+        # Create a CSV with data for load_csv tests
+        test_data = {
+            "opened_at": ["2023-01-01 12:00:00", "2023-01-02 12:00:00"],
+            "resolved_at": ["2023-01-01 13:00:00", "2023-01-02 13:00:00"],
+            "sys_tags": ["  tag1 ", " tag2  "],
+            "comments": [" comment1 ", "comment2 "],
+            "work_notes": [" notes1 ", "  notes2"],
+            "assigned_to": ["  user1", ""],
+            "state": ["  Closed", "New  "],
+            "u_original_assignment_group": ["  group1", "group2  "],
+            "close_code": ["  code1", "code2  "],
+        }
+        pd.DataFrame(test_data).to_csv(self.data_csv_path, index=False)
 
     def tearDown(self):
         """Tear down test files."""
@@ -124,3 +140,85 @@ class TestIoLoader(unittest.TestCase):
         empty_df = pd.DataFrame()
         processed_empty_df = _normalize_strings(empty_df)
         pd.testing.assert_frame_equal(processed_empty_df, empty_df)
+
+    def test_load_csv_no_chunking(self):
+        """Test loading a CSV without chunking."""
+        # All required columns are present in data.csv, so this should work
+        df = load_csv(self.data_csv_path)
+        self.assertIsInstance(df, pd.DataFrame)
+        self.assertEqual(len(df), 2)
+
+        # Check that columns are what we expect
+        self.assertEqual(list(df.columns), sorted(list(REQUIRED_HEADERS)))
+
+        # Check normalization and special handling for 'assigned_to'
+        self.assertEqual(df["sys_tags"][0], "tag1")
+        self.assertEqual(df["assigned_to"][1], "Unassigned")
+        self.assertEqual(df["state"][0], "Closed")
+
+    def test_load_csv_with_chunking(self):
+        """Test loading a CSV with chunking."""
+        chunks = load_csv(self.data_csv_path, chunksize=1)
+        self.assertTrue(hasattr(chunks, "__iter__"))
+
+        chunk_list = list(chunks)
+        self.assertEqual(len(chunk_list), 2)
+
+        # Check first chunk
+        df1 = chunk_list[0]
+        self.assertIsInstance(df1, pd.DataFrame)
+        self.assertEqual(len(df1), 1)
+        self.assertEqual(df1["sys_tags"].iloc[0], "tag1")
+        self.assertEqual(df1["assigned_to"].iloc[0], "user1")
+
+        # Check second chunk
+        df2 = chunk_list[1]
+        self.assertIsInstance(df2, pd.DataFrame)
+        self.assertEqual(len(df2), 1)
+        self.assertEqual(df2["sys_tags"].iloc[0], "tag2")
+        self.assertEqual(df2["assigned_to"].iloc[0], "Unassigned")
+
+    def test_load_csv_usecols(self):
+        """Test loading a CSV with usecols."""
+        usecols = ["sys_tags", "assigned_to", "state"]
+        df = load_csv(self.data_csv_path, usecols=usecols)
+        self.assertIsInstance(df, pd.DataFrame)
+        self.assertEqual(list(df.columns), usecols)
+        self.assertEqual(len(df), 2)
+        self.assertEqual(df["sys_tags"][0], "tag1")
+        self.assertEqual(df["state"][1], "New")
+
+    def test_load_csv_chunked_usecols(self):
+        """Test loading a chunked CSV with usecols."""
+        usecols = ["sys_tags", "assigned_to"]
+        chunks = load_csv(self.data_csv_path, usecols=usecols, chunksize=1)
+        chunk_list = list(chunks)
+        self.assertEqual(len(chunk_list), 2)
+
+        df1 = chunk_list[0]
+        self.assertEqual(list(df1.columns), usecols)
+        self.assertEqual(df1["sys_tags"].iloc[0], "tag1")
+
+        df2 = chunk_list[1]
+        self.assertEqual(list(df2.columns), usecols)
+        self.assertEqual(df2["assigned_to"].iloc[0], "Unassigned")
+
+    def test_load_csv_missing_headers_propagates_error(self):
+        """Test that load_csv propagates MissingHeadersError."""
+        with pytest.raises(MissingHeadersError):
+            load_csv(self.invalid_csv_path)
+
+    def test_load_csv_reorders_columns(self):
+        """Test that load_csv reorders columns to match usecols order."""
+        usecols = ["state", "assigned_to", "sys_tags"]
+        df = load_csv(self.data_csv_path, usecols=usecols)
+        self.assertEqual(list(df.columns), usecols)
+
+    def test_load_csv_usecols_with_missing_required_headers(self):
+        """Test that load_csv with usecols works on a file missing non-requested required headers."""
+        # self.invalid_csv_path is missing some REQUIRED_HEADERS.
+        # We select columns that are known to be present in the invalid file.
+        present_cols = self.missing_headers[:2]
+        df = load_csv(self.invalid_csv_path, usecols=present_cols)
+        self.assertIsInstance(df, pd.DataFrame)
+        self.assertEqual(list(df.columns), present_cols)

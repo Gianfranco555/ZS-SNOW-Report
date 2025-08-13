@@ -75,4 +75,49 @@ def load_csv(
     usecols: list[str] | None = None,
     chunksize: int | None = None,
 ) -> pd.DataFrame | Iterator[pd.DataFrame]:
-    ...
+    """Load a CSV file, with optional chunking and column selection.
+
+    Args:
+        path: The path to the CSV file.
+        tz: The timezone to use for date columns (currently unused).
+        encoding: The encoding of the file.
+        usecols: A list of columns to load. If None, all required headers are used.
+        chunksize: The number of rows to read per chunk.
+
+    Returns:
+        A DataFrame or an iterator of DataFrames.
+    """
+    # tz is accepted for signature parity but unused
+    del tz
+
+    cols = usecols or sorted(list(REQUIRED_HEADERS))
+    if usecols:
+        # When usecols is specified, we should only validate that those columns exist.
+        csv_headers = read_csv_headers(path, encoding)
+        missing_cols = set(cols) - set(csv_headers)
+        if missing_cols:
+            raise MissingHeadersError(list(missing_cols))
+    else:
+        # Default behavior: ensure all required headers are present.
+        ensure_headers_ok(path, encoding)
+
+    reader = pd.read_csv(
+        path,
+        encoding=encoding,
+        usecols=cols,
+        dtype="string",
+        chunksize=chunksize,
+        keep_default_na=True,
+    )
+
+    if chunksize is None:
+        # reader is a DataFrame
+        df = _normalize_strings(reader)
+        return df[cols]
+    else:
+        # reader is an iterator
+        def _process_chunks():
+            for chunk in reader:
+                yield _normalize_strings(chunk)[cols]
+
+        return _process_chunks()
