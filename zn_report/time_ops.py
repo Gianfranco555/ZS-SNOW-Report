@@ -22,35 +22,25 @@ def parse_dates(df: pd.DataFrame, tz: str) -> pd.DataFrame:
     - Leaves non-date columns untouched.
     """
     out = df.copy()
-    tzinfo = ZoneInfo(tz)
 
-    def _coerce_one(x):
-        if x is None or (isinstance(x, float) and pd.isna(x)) or (isinstance(x, str) and x.strip() == ""):
+    def _process_timestamp(ts):
+        if pd.isna(ts):
             return pd.NaT
-        try:
-            ts = pd.to_datetime(x, errors="raise")
-        except Exception:
-            return pd.NaT
-        # pandas Timestamp: tz-aware → convert; naive → localize
-        if getattr(ts, "tzinfo", None) is None:
-            try:
-                # Handle DST gaps/ambiguous by coercing to NaT rather than raising
-                return ts.tz_localize(tzinfo, nonexistent="NaT", ambiguous="NaT")
-            except TypeError:
-                # Fallback for older pandas without nonexistent/ambiguous kwargs
-                try:
-                    return ts.tz_localize(tzinfo)
-                except Exception:
-                    return pd.NaT
+        if ts.tzinfo is None:
+            return ts.tz_localize(tz, nonexistent="NaT", ambiguous="NaT")
         else:
-            return ts.tz_convert(tzinfo)
+            return ts.tz_convert(tz)
 
     for col in _DATE_COLS:
         if col in out.columns:
-            out[col] = pd.Series((_coerce_one(v) for v in out[col]))
+            # Element-wise conversion is needed to correctly handle mixed naive/aware
+            # strings as per spec (vectorized pd.to_datetime assumes UTC for naive).
+            s = out[col].apply(pd.to_datetime, errors="coerce")
+            # Apply timezone logic to each element.
+            out[col] = s.apply(_process_timestamp)
         else:
-            # Required by spec elsewhere, but we don't enforce header contract here.
-            out[col] = pd.Series([], dtype="datetime64[ns]")
+            # If a date column is missing, create an empty one with the target dtype.
+            out[col] = pd.Series([], dtype=f"datetime64[ns, {tz}]")
 
     return out
 
