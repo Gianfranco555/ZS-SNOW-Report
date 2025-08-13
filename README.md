@@ -62,9 +62,10 @@ Note that header failures raise `MissingHeadersError` (later mapped to exit code
 
 ### Date Parsing & Buckets (Chunk 3)
 ```py
+from zn_report.io_loader import load_csv
 from zn_report.time_ops import parse_dates, derive_buckets
 
-df = load_csv("tickets.csv")        # from Chunk 2
+df = load_csv("tickets.csv")
 df = parse_dates(df, tz="UTC")      # tz-aware 'opened_at'/'resolved_at'
 
 days = derive_buckets("2025-07-01", "2025-07-31", tz="UTC")  # inclusive list[date]
