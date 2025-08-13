@@ -101,6 +101,9 @@ def load_csv(
         # Default behavior: ensure all required headers are present.
         ensure_headers_ok(path, encoding)
 
+    if hasattr(path, "seek"):
+        path.seek(0)
+
     reader = pd.read_csv(
         path,
         encoding=encoding,
