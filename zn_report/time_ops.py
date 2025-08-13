@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from typing import Iterable, List
 from zoneinfo import ZoneInfo
 import pandas as pd
-from pandas.api.types import is_datetime64tz_dtype, DatetimeTZDtype
+from pandas.api.types import DatetimeTZDtype
 
 
 DATE_OPEN = "opened_at"
