@@ -59,3 +59,14 @@ df = load_csv("tickets.csv")                       # DataFrame
 it = load_csv("tickets.csv", chunksize=100_000)  # Iterator[pd.DataFrame]
 ```
 Note that header failures raise `MissingHeadersError` (later mapped to exit code 2 by the CLI).
+
+### Date Parsing & Buckets (Chunk 3)
+```py
+from zn_report.io_loader import load_csv
+from zn_report.time_ops import parse_dates, derive_buckets
+
+df = load_csv("tickets.csv")
+df = parse_dates(df, tz="UTC")      # tz-aware 'opened_at'/'resolved_at'
+
+days = derive_buckets("2025-07-01", "2025-07-31", tz="UTC")  # inclusive list[date]
+```
