@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 from datetime import date
-from pandas.api.types import is_datetime64tz_dtype
+from pandas.api.types import DatetimeTZDtype
 
 from zn_report.time_ops import parse_dates, derive_buckets
 
@@ -23,8 +23,8 @@ def test_parse_dates_localize_and_convert():
 
     out = parse_dates(df, tz="America/Chicago")
 
-    assert is_datetime64tz_dtype(out["opened_at"])
-    assert is_datetime64tz_dtype(out["resolved_at"])
+    assert isinstance(out["opened_at"].dtype, DatetimeTZDtype)
+    assert isinstance(out["resolved_at"].dtype, DatetimeTZDtype)
 
     # Row 0: naive localized to target tz (date component should match 2025-03-08)
     assert out.loc[0, "opened_at"].date().isoformat() == "2025-03-08"
@@ -52,3 +52,22 @@ def test_derive_buckets_inclusive_and_types():
 def test_derive_buckets_rejects_inverted_range():
     with pytest.raises(ValueError):
         derive_buckets("2025-08-10", "2025-08-09", tz="UTC")
+
+
+def test_parse_dates_handles_dst_boundaries():
+    # DST in America/Chicago for 2025:
+    # - Spring forward: Mar 9, 2:00 AM -> 3:00 AM (2:00-2:59 does not exist)
+    # - Fall back: Nov 2, 2:00 AM -> 1:00 AM (1:00-1:59 is ambiguous)
+    df = pd.DataFrame({
+        "opened_at": [
+            "2025-03-09 02:30:00",  # nonexistent time
+            "2025-11-02 01:30:00",  # ambiguous time
+        ],
+    })
+
+    out = parse_dates(df, tz="America/Chicago")
+
+    # Non-existent and ambiguous times should be coerced to NaT
+    assert pd.isna(out.loc[0, "opened_at"])
+    assert pd.isna(out.loc[1, "opened_at"])
+    assert isinstance(out["opened_at"].dtype, DatetimeTZDtype)

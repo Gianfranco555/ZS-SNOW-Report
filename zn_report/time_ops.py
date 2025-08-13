@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from typing import Iterable, List
 from zoneinfo import ZoneInfo
 import pandas as pd
+from pandas.api.types import is_datetime64tz_dtype, DatetimeTZDtype
 
 
 DATE_OPEN = "opened_at"
@@ -22,25 +23,39 @@ def parse_dates(df: pd.DataFrame, tz: str) -> pd.DataFrame:
     - Leaves non-date columns untouched.
     """
     out = df.copy()
+    target_tz = ZoneInfo(tz)
 
-    def _process_timestamp(ts):
-        if pd.isna(ts):
+    def _process_timestamp(value):
+        if pd.isna(value) or value == "":
             return pd.NaT
-        if ts.tzinfo is None:
-            return ts.tz_localize(tz, nonexistent="NaT", ambiguous="NaT")
+        try:
+            # Per spec, parse with errors="raise"
+            ts = pd.to_datetime(value, errors="raise")
+        except (ValueError, TypeError):
+            return pd.NaT
+
+        # If tz-aware, convert to target_tz.
+        if ts.tzinfo is not None:
+            return ts.tz_convert(target_tz)
+        # If naive, localize to target_tz. Coerce DST boundary issues to NaT.
         else:
-            return ts.tz_convert(tz)
+            return ts.tz_localize(target_tz, nonexistent="NaT", ambiguous="NaT")
 
     for col in _DATE_COLS:
         if col in out.columns:
-            # Element-wise conversion is needed to correctly handle mixed naive/aware
-            # strings as per spec (vectorized pd.to_datetime assumes UTC for naive).
-            s = out[col].apply(pd.to_datetime, errors="coerce")
-            # Apply timezone logic to each element.
-            out[col] = s.apply(_process_timestamp)
+            out[col] = out[col].apply(_process_timestamp)
+            # After processing, ensure the column has the correct timezone-aware dtype,
+            # especially if it contains all NaT values (which results in object dtype).
+            if not isinstance(out[col].dtype, DatetimeTZDtype):
+                # This can happen if all inputs were invalid, creating a Series of NaTs
+                # with a non-tz-aware dtype (like object or datetime64[ns]).
+                # We must explicitly convert it to the target tz-aware dtype.
+                # `astype` fails for naive -> aware, so we convert to datetime (if needed),
+                # then localize. Since all values are NaT, localizing is safe.
+                out[col] = pd.to_datetime(out[col]).dt.tz_localize(target_tz)
         else:
             # If a date column is missing, create an empty one with the target dtype.
-            out[col] = pd.Series([], dtype=f"datetime64[ns, {tz}]")
+            out[col] = pd.Series([], dtype=f"datetime64[ns, {target_tz}]")
 
     return out
 
