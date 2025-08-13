@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Any
-
 import re
 from collections import Counter
 from datetime import date
@@ -87,7 +84,6 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     end_str = str(buckets[-1]) if buckets else str(end)
 
     metadata = {
-        "version": 3,
         "source_path": source_path,
         "tz": tz,
         "start": start_str,
@@ -170,50 +166,38 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     }
 
     # 8. Calculate Tables
-    tables = {}
+    tables = {
+        "resolved_by_assignee": [],
+        "top_5_tags": [],
+        "top_5_resolution_codes": [],
+    }
     if not resolved_df.empty:
         # Table: Resolved by Assignee
         if "assigned_to" in resolved_df.columns:
             assignee_counts = resolved_df["assigned_to"].value_counts()
             df_assignees = assignee_counts.reset_index()
             df_assignees.columns = ["assignee", "count"]
-            # Sort by count (desc), then assignee name (asc) for tie-breaking
             df_assignees = df_assignees.sort_values(by=["count", "assignee"], ascending=[False, True])
             tables["resolved_by_assignee"] = [
                 {"assignee": row.assignee, "count": int(row.count)}
                 for row in df_assignees.itertuples()
             ]
-        else:
-            tables["resolved_by_assignee"] = []
 
         # Table: Top 5 Tags
         if "sys_tags" in resolved_df.columns:
             tables["top_5_tags"] = _get_top_tags(resolved_df["sys_tags"], n=5)
-        else:
-            tables["top_5_tags"] = []
 
         # Table: Top 5 Resolution Codes
         if "close_code" in resolved_df.columns:
-            # Per spec, NA/blank close codes are "Unspecified"
             codes = resolved_df["close_code"].fillna("Unspecified").replace("", "Unspecified")
             code_counts = codes.value_counts()
             df_codes = code_counts.reset_index()
             df_codes.columns = ["code", "count"]
-            # Sort by count (desc), then code (asc) for tie-breaking
             df_codes = df_codes.sort_values(by=["count", "code"], ascending=[False, True])
             top_5 = df_codes.head(5)
             tables["top_5_resolution_codes"] = [
                 {"code": row.code, "count": int(row.count)} for row in top_5.itertuples()
             ]
-        else:
-            tables["top_5_resolution_codes"] = []
-    else:
-        # If there are no resolved tickets, all tables are empty
-        tables = {
-            "resolved_by_assignee": [],
-            "top_5_tags": [],
-            "top_5_resolution_codes": [],
-        }
 
     return {
         "version": 3,

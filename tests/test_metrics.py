@@ -103,40 +103,28 @@ def test_table_resolved_by_assignee(metrics_results: dict):
 def test_table_top_5_tags(metrics_results: dict):
     """Tests the top_5_tags table for parsing, counting, and sorting."""
     table = metrics_results["tables"]["top_5_tags"]
-    # Expected counts: foo:5, baz:3, bar:2, dup:1, no-open-date:1
-    # Tie break between dup and no-open-date is alphabetical: dup, no-open-date
-    expected_table = [
+    # Expected order is by count (desc), then tag name (asc) for ties.
+    expected = [
         {"tag": "foo", "count": 5},
         {"tag": "baz", "count": 3},
         {"tag": "bar", "count": 2},
         {"tag": "dup", "count": 1},
         {"tag": "no-open-date", "count": 1},
     ]
-    # We need to sort the tail of the list to handle the tie-break deterministically
-    # The main function sorts by tag name A-Z for ties.
-    assert table[:3] == expected_table[:3]
-    # Check the tie-break part
-    tail = sorted(table[3:], key=lambda x: x['tag'])
-    assert tail[0]['tag'] == 'dup'
-    assert tail[1]['tag'] == 'no-open-date'
+    assert table == expected
 
 
 def test_table_top_5_resolution_codes(metrics_results: dict):
     """Tests the top_5_resolution_codes table for NA handling and sorting."""
     table = metrics_results["tables"]["top_5_resolution_codes"]
-    # Expected: Solved:4, Solved Remotely:2, Not Applicable:1, Unspecified:1
-    assert len(table) == 4 # Only 4 distinct codes
-    expected_head = [
+    # Expected order is by count (desc), then code name (asc) for ties.
+    expected = [
         {"code": "Solved", "count": 4},
         {"code": "Solved Remotely", "count": 2},
-    ]
-    assert table[:2] == expected_head
-    # Check tie-break part (count=1)
-    tail = sorted([table[2], table[3]], key=lambda x: x["code"])
-    assert tail == [
         {"code": "Not Applicable", "count": 1},
         {"code": "Unspecified", "count": 1},
     ]
+    assert table == expected
 
 def test_empty_input():
     """Tests that compute_metrics handles an empty DataFrame gracefully."""
