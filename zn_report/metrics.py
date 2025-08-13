@@ -101,6 +101,8 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     # 5. Filter data for KPI calculations
     # The primary filter is for tickets resolved within the reporting window.
     resolved_df = pd.DataFrame(columns=proc_df.columns)
+    start_ts = None
+    end_ts = None
     if buckets:
         # Create tz-aware timestamps for the start and end of the date range
         start_ts = pd.Timestamp(buckets[0], tz=tz)
@@ -139,37 +141,70 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     else:
         open_by_state = {state: 0 for state in open_states}
 
+    open_by_state_total = sum(open_by_state.values())
+
     kpis = {
         "resolved_count": resolved_count,
         "resolved_per_day_avg": resolved_per_day_avg,
         "avg_ttr_hours": float(avg_ttr_hours),
         "open_by_state": open_by_state,
+        "open_by_state_total": open_by_state_total,
     }
 
     # 7. Calculate Time Series data
     # resolved_per_day: count of tickets resolved on each calendar day in window.
     if not resolved_df.empty:
-        # Extract the date part of the 'resolved_at' timestamp. .dt.date gives date objects.
         resolved_dates = resolved_df["resolved_at"].dt.date
-        # Count occurrences of each resolution date.
-        daily_counts = resolved_dates.value_counts().to_dict()
+        resolved_daily_counts = resolved_dates.value_counts().to_dict()
     else:
-        daily_counts = {}
+        resolved_daily_counts = {}
 
-    # Use the buckets to create a zero-filled series. `buckets` is a list[date].
     resolved_per_day = [
-        {"date": b.strftime("%Y-%m-%d"), "count": daily_counts.get(b, 0)} for b in buckets
+        {"date": b.strftime("%Y-%m-%d"), "count": resolved_daily_counts.get(b, 0)} for b in buckets
     ]
+
+    # daily_opened: count of tickets opened on each calendar day in window
+    opened_df_in_window = pd.DataFrame(columns=proc_df.columns)
+    if start_ts and end_ts:
+        opened_mask = proc_df["opened_at"].between(start_ts, end_ts, inclusive="both")
+        opened_df_in_window = proc_df[opened_mask.fillna(False)].copy()
+
+    if not opened_df_in_window.empty:
+        opened_dates = opened_df_in_window["opened_at"].dt.date
+        opened_daily_counts = opened_dates.value_counts().to_dict()
+    else:
+        opened_daily_counts = {}
+
+    daily_opened = [
+        {"date": b.strftime("%Y-%m-%d"), "count": opened_daily_counts.get(b, 0)} for b in buckets
+    ]
+
+    # opened_vs_resolved: combination of daily opened and resolved counts
+    opened_vs_resolved = {
+        "dates": [b.strftime("%Y-%m-%d") for b in buckets],
+        "opened": [d["count"] for d in daily_opened],
+        "resolved": [d["count"] for d in resolved_per_day],
+    }
 
     series = {
         "resolved_per_day": resolved_per_day,
+        "daily_opened": daily_opened,
+        "opened_vs_resolved": opened_vs_resolved,
     }
 
     # 8. Calculate Tables
+    # Table: open_by_state
+    open_by_state_table = [
+        {"state": state, "count": count} for state, count in sorted(open_by_state.items())
+        if count > 0
+    ]
+
     tables = {
         "resolved_by_assignee": [],
         "top_5_tags": [],
         "top_5_resolution_codes": [],
+        "open_by_state": open_by_state_table,
+        "queue_origin": [],
     }
     if not resolved_df.empty:
         # Table: Resolved by Assignee
@@ -197,6 +232,26 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
             top_5 = df_codes.head(5)
             tables["top_5_resolution_codes"] = [
                 {"code": row.code, "count": int(row.count)} for row in top_5.itertuples()
+            ]
+
+        # Table: Queue Origin
+        if "u_original_assignment_group" in resolved_df.columns:
+            # Create a temporary column for categorization
+            resolved_df["origin"] = resolved_df["u_original_assignment_group"].apply(
+                lambda x: "DVN-Global-Zscaler-Operations"
+                if pd.notna(x) and x.lower() == "dvn-global-zscaler-operations"
+                else "From Service Desk"
+            )
+
+            origin_counts = resolved_df["origin"].value_counts().reset_index()
+            origin_counts.columns = ["origin", "count"]
+            # Sort by count (desc), then origin (asc)
+            origin_counts = origin_counts.sort_values(
+                by=["count", "origin"], ascending=[False, True]
+            )
+            tables["queue_origin"] = [
+                {"origin": row.origin, "count": int(row.count)}
+                for row in origin_counts.itertuples()
             ]
 
     return {
