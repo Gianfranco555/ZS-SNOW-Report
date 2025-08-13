@@ -5,6 +5,30 @@ from zn_report.constants import REQUIRED_HEADERS
 from zn_report.exceptions import MissingHeadersError
 
 
+STRING_COLS = (
+    "sys_tags",
+    "comments",
+    "work_notes",
+    "assigned_to",
+    "state",
+    "u_original_assignment_group",
+    "close_code",
+)
+
+
+def _normalize_strings(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize string columns."""
+    df = df.copy()
+    for col in STRING_COLS:
+        if col in df.columns:
+            df[col] = df[col].astype(pd.StringDtype()).str.strip()
+
+    if "assigned_to" in df.columns:
+        df["assigned_to"] = df["assigned_to"].replace("", "Unassigned").fillna("Unassigned")
+
+    return df
+
+
 def read_csv_headers(path: str, encoding: str = "utf-8") -> list[str]:
     """Reads only the headers of a CSV file.
 
