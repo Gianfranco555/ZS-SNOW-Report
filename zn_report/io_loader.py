@@ -22,9 +22,8 @@ def _normalize_strings(df: pd.DataFrame) -> pd.DataFrame:
     for col in STRING_COLS:
         if col in df.columns:
             df[col] = df[col].astype(pd.StringDtype()).str.strip()
-
-    if "assigned_to" in df.columns:
-        df["assigned_to"] = df["assigned_to"].replace("", "Unassigned").fillna("Unassigned")
+            if col == "assigned_to":
+                df[col] = df[col].replace("", "Unassigned").fillna("Unassigned")
 
     return df
 
