@@ -149,7 +149,7 @@ class TestIoLoader(unittest.TestCase):
         self.assertEqual(len(df), 2)
 
         # Check that columns are what we expect
-        self.assertEqual(set(df.columns), set(REQUIRED_HEADERS))
+        self.assertEqual(list(df.columns), sorted(list(REQUIRED_HEADERS)))
 
         # Check normalization and special handling for 'assigned_to'
         self.assertEqual(df["sys_tags"][0], "tag1")
@@ -213,3 +213,12 @@ class TestIoLoader(unittest.TestCase):
         usecols = ["state", "assigned_to", "sys_tags"]
         df = load_csv(self.data_csv_path, usecols=usecols)
         self.assertEqual(list(df.columns), usecols)
+
+    def test_load_csv_usecols_with_missing_required_headers(self):
+        """Test that load_csv with usecols works on a file missing non-requested required headers."""
+        # self.invalid_csv_path is missing some REQUIRED_HEADERS.
+        # We select columns that are known to be present in the invalid file.
+        present_cols = self.missing_headers[:2]
+        df = load_csv(self.invalid_csv_path, usecols=present_cols)
+        self.assertIsInstance(df, pd.DataFrame)
+        self.assertEqual(list(df.columns), present_cols)

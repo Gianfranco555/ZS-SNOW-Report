@@ -90,8 +90,16 @@ def load_csv(
     # tz is accepted for signature parity but unused
     del tz
 
-    cols = usecols or list(REQUIRED_HEADERS)
-    ensure_headers_ok(path, encoding)
+    cols = usecols or sorted(list(REQUIRED_HEADERS))
+    if usecols:
+        # When usecols is specified, we should only validate that those columns exist.
+        csv_headers = read_csv_headers(path, encoding)
+        missing_cols = set(cols) - set(csv_headers)
+        if missing_cols:
+            raise MissingHeadersError(list(missing_cols))
+    else:
+        # Default behavior: ensure all required headers are present.
+        ensure_headers_ok(path, encoding)
 
     reader = pd.read_csv(
         path,
