@@ -4,6 +4,7 @@ import unittest
 import pandas as pd
 import pytest
 import numpy as np
+import io
 
 from zn_report.io_loader import (
     _normalize_strings,
@@ -11,9 +12,121 @@ from zn_report.io_loader import (
     validate_headers,
     ensure_headers_ok,
     load_csv,
+    STRING_COLS,
 )
 from zn_report.exceptions import MissingHeadersError
 from zn_report.constants import REQUIRED_HEADERS
+
+
+@pytest.fixture
+def csv_content() -> str:
+    """Provides a 5-row CSV string with headers and varied data."""
+    # Use a structured approach to create the CSV content to avoid column mismatch errors.
+    headers = sorted(list(REQUIRED_HEADERS))
+    data = [
+        {
+            "sys_tags": "  tag1 ", "comments": " c1 ", "work_notes": " w1 ", "assigned_to": " ",
+            "state": " new ", "u_original_assignment_group": " g1 ", "close_code": " cc1 ",
+            "opened_at": "2023-01-01", "resolved_at": "2023-01-01"
+        },
+        {
+            "sys_tags": "tag2", "comments": "c2", "work_notes": "w2", "assigned_to": "user1",
+            "state": "closed", "u_original_assignment_group": "g2", "close_code": "cc2",
+            "opened_at": "2023-01-02", "resolved_at": "2023-01-02"
+        },
+        {
+            "sys_tags": " tag3", "comments": "c3 ", "work_notes": " w3 ", "assigned_to": "  user2  ",
+            "state": "  pending  ", "u_original_assignment_group": " g3 ", "close_code": " cc3 ",
+            "opened_at": "2023-01-03", "resolved_at": "2023-01-03"
+        },
+        {
+            "sys_tags": "tag4", "comments": "c4", "work_notes": "w4", "assigned_to": "",
+            "state": "closed", "u_original_assignment_group": "g4", "close_code": "cc4",
+            "opened_at": "2023-01-04", "resolved_at": "2023-01-04"
+        },
+        {
+            "sys_tags": "tag5", "comments": "c5", "work_notes": "w5", "assigned_to": "user3",
+            "state": "new", "u_original_assignment_group": "g5", "close_code": "cc5",
+            "opened_at": "2023-01-05", "resolved_at": "2023-01-05"
+        },
+    ]
+    # Create a DataFrame to easily convert to a CSV string with the correct header order.
+    df = pd.DataFrame(data, columns=headers)
+    return df.to_csv(index=False)
+
+
+class TestIoLoaderHermetic:
+    def test_missing_headers_raises(self):
+        """Test that loading a CSV with missing headers raises MissingHeadersError."""
+        # Create a CSV with one required header missing.
+        headers = sorted(list(REQUIRED_HEADERS - {"sys_tags"}))
+        csv_file = io.StringIO(",".join(headers) + "\n" + "a,b,c,d,e,f,g,h")
+
+        with pytest.raises(MissingHeadersError) as excinfo:
+            load_csv(csv_file)
+
+        # The error should report the exact missing header.
+        assert excinfo.value.missing == ["sys_tags"]
+
+    def test_load_csv_single_frame_ok(self, csv_content: str):
+        """Test that loading a CSV in a single frame works correctly."""
+        csv_file = io.StringIO(csv_content)
+        df = load_csv(csv_file)
+
+        assert isinstance(df, pd.DataFrame)
+
+        # Columns should be sorted as per default behavior.
+        expected_cols = sorted(list(REQUIRED_HEADERS))
+        assert list(df.columns) == expected_cols
+
+        # All string-like columns should be of StringDtype.
+        for col in STRING_COLS:
+            assert isinstance(df[col].dtype, pd.StringDtype)
+
+        # Check whitespace stripping and special 'Unassigned' replacement.
+        expected_assigned_to = pd.Series(
+            ["Unassigned", "user1", "user2", "Unassigned", "user3"],
+            name="assigned_to",
+            dtype="string"
+        )
+        pd.testing.assert_series_equal(df["assigned_to"], expected_assigned_to)
+
+        expected_sys_tags = pd.Series(
+            ["tag1", "tag2", "tag3", "tag4", "tag5"],
+            name="sys_tags",
+            dtype="string"
+        )
+        pd.testing.assert_series_equal(df["sys_tags"], expected_sys_tags)
+
+    def test_load_csv_chunked_iterator(self, csv_content: str):
+        """Test that loading a CSV with chunking works correctly."""
+        # Full load for comparison.
+        full_df = load_csv(io.StringIO(csv_content))
+
+        # Chunked load.
+        csv_file = io.StringIO(csv_content)
+        chunks = load_csv(csv_file, chunksize=2)
+
+        assert hasattr(chunks, "__iter__")
+        chunk_list = list(chunks)
+
+        assert len(chunk_list) == 3
+        assert all(isinstance(chunk, pd.DataFrame) for chunk in chunk_list)
+        assert [len(chunk) for chunk in chunk_list] == [2, 2, 1]
+
+        # Compare concatenated chunks to the full-loaded DataFrame.
+        concatenated_df = pd.concat(chunk_list).reset_index(drop=True)
+        pd.testing.assert_frame_equal(concatenated_df, full_df)
+
+    def test_usecols_override(self, csv_content: str):
+        """Test that `usecols` overrides the default column selection."""
+        csv_file = io.StringIO(csv_content)
+        usecols = ["assigned_to", "state"]
+        df = load_csv(csv_file, usecols=usecols)
+
+        assert isinstance(df, pd.DataFrame)
+        assert list(df.columns) == usecols
+        assert len(df) == 5
 
 
 class TestIoLoader(unittest.TestCase):
