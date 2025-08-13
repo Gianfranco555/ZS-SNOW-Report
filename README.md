@@ -55,7 +55,7 @@ print(cfg.title)
 
 ```py
 from zn_report.io_loader import load_csv
-df = load_csv("tickets.csv")         # DataFrame
+df = load_csv("tickets.csv")                       # DataFrame
 it = load_csv("tickets.csv", chunksize=100_000)  # Iterator[pd.DataFrame]
 ```
 Note that header failures raise `MissingHeadersError` (later mapped to exit code 2 by the CLI).
