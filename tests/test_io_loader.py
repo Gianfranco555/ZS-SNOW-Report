@@ -60,7 +60,7 @@ class TestIoLoaderHermetic:
         """Test that loading a CSV with missing headers raises MissingHeadersError."""
         # Create a CSV with one required header missing.
         headers = sorted(list(REQUIRED_HEADERS - {"sys_tags"}))
-        csv_file = io.StringIO(",".join(headers) + "\n" + "a,b,c,d,e,f,g,h")
+        csv_file = io.StringIO(",".join(headers) + "\n" + ",".join(["data"] * len(headers)))
 
         with pytest.raises(MissingHeadersError) as excinfo:
             load_csv(csv_file)
