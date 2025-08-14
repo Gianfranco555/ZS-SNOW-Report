@@ -113,6 +113,7 @@ def test_cli_all_rows_dropped():
 
 
 from zn_report.cli import cli_main
+from zn_report.exceptions import FileIOError
 
 def test_cli_render_failure(monkeypatch, caplog):
     """Test that the CLI exits with code 4 on a rendering failure."""
@@ -147,3 +148,35 @@ def test_cli_render_failure(monkeypatch, caplog):
 
     # Check that the error message was logged
     assert "Error during report rendering/assembly: Simulated rendering error" in caplog.text
+
+
+def test_cli_io_error_during_processing(monkeypatch, caplog):
+    """Test that the CLI exits with code 5 on an I/O error during processing."""
+    # This tests a more subtle I/O error than a simple file-not-found.
+    # We mock the underlying pandas reader to raise an error during iteration.
+    def mock_read_csv(*args, **kwargs):
+        # Simulate a generic I/O error
+        raise FileIOError("Simulated read error")
+
+    monkeypatch.setattr("zn_report.io_loader.load_csv", mock_read_csv)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "zn-report",
+            "--csv",
+            str(VALID_CSV), # File exists, but will fail during read
+            "--start",
+            "2025-07-01",
+            "--end",
+            "2025-07-31",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as e:
+        cli_main()
+
+    assert e.type == SystemExit
+    assert e.value.code == 5
+    assert "Simulated read error" in caplog.text
