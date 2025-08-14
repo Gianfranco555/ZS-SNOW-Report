@@ -14,7 +14,7 @@ from zn_report.io_loader import (
     load_csv,
     STRING_COLS,
 )
-from zn_report.exceptions import MissingHeadersError
+from zn_report.exceptions import MissingHeadersError, FileIOError
 from zn_report.constants import REQUIRED_HEADERS
 
 
@@ -335,3 +335,42 @@ class TestIoLoader(unittest.TestCase):
         df = load_csv(self.invalid_csv_path, usecols=present_cols)
         self.assertIsInstance(df, pd.DataFrame)
         self.assertEqual(list(df.columns), present_cols)
+
+    def test_read_csv_with_latin1_fallback(self):
+        """Test that a latin-1 encoded file is read successfully."""
+        # Create a latin-1 encoded file for testing
+        latin1_path = os.path.join(self.test_dir, "latin1.csv")
+        with open(latin1_path, "w", encoding="latin-1") as f:
+            f.write("header,value\né,1")
+
+        df = load_csv(latin1_path, usecols=["header", "value"])
+        self.assertEqual(df["header"][0], "é")
+
+    def test_read_csv_with_unsupported_encoding_raises_error(self):
+        """Test that a file with an unsupported encoding raises FileIOError."""
+        # Create a utf-16 encoded file for testing
+        utf16_path = os.path.join(self.test_dir, "utf16.csv")
+        with open(utf16_path, "w", encoding="utf-16") as f:
+            f.write("header,value\né,1")
+
+        with pytest.raises(FileIOError) as excinfo:
+            load_csv(utf16_path)
+
+        self.assertIn(
+            "could not be read. Please ensure it is saved with either UTF-8 or Latin-1 encoding.",
+            str(excinfo.value)
+        )
+
+    def test_read_csv_with_truly_invalid_encoding_raises_error(self):
+        """Test that a file with an unparseable encoding raises FileIOError."""
+        # Create a file with content that will cause a ParserError in pandas,
+        # regardless of the encoding used.
+        invalid_path = os.path.join(self.test_dir, "invalid_encoding.csv")
+        with open(invalid_path, "wb") as f:
+            # An unclosed quote is invalid CSV syntax.
+            f.write(b'"')
+
+        with pytest.raises(FileIOError):
+            # We call read_csv_headers directly to isolate the reading logic
+            # from the header validation logic in load_csv.
+            read_csv_headers(invalid_path)

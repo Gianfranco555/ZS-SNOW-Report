@@ -2,7 +2,64 @@ import pandas as pd
 from typing import Iterator
 
 from zn_report.constants import REQUIRED_HEADERS
-from zn_report.exceptions import MissingHeadersError
+from zn_report.exceptions import MissingHeadersError, FileIOError
+
+
+import os
+import codecs
+from pathlib import Path
+from typing import IO, Union
+
+def _read_csv_with_fallback(
+    path: Union[str, Path, IO], **kwargs
+) -> pd.DataFrame | Iterator[pd.DataFrame]:
+    """Reads a CSV file with fallback encoding.
+
+    This is a memory-efficient implementation that lets pandas handle file I/O.
+    It tries to read the file with UTF-8 encoding first, then falls back to
+    Latin-1 if a UnicodeDecodeError or ParserError is encountered.
+
+    Args:
+        path: The path to the CSV file or a file-like object.
+        **kwargs: Additional keyword arguments to pass to pandas.read_csv.
+
+    Returns:
+        A DataFrame or an iterator of DataFrames.
+
+    Raises:
+        FileIOError: If the file cannot be read with either encoding.
+        FileNotFoundError: If the file path does not exist.
+        pd.errors.EmptyDataError: If the file is empty.
+    """
+    # For file paths, we can efficiently sniff for an unsupported BOM.
+    if isinstance(path, (str, os.PathLike)):
+        try:
+            with open(path, "rb") as f:
+                bom = f.read(4)
+            if bom.startswith(codecs.BOM_UTF16_LE) or bom.startswith(codecs.BOM_UTF16_BE):
+                raise FileIOError(
+                    f"The file at {path} could not be read. Please ensure it is saved with"
+                    " either UTF-8 or Latin-1 encoding."
+                )
+        except FileNotFoundError:
+            # Let pd.read_csv handle the FileNotFoundError to be consistent.
+            pass
+
+    try:
+        return pd.read_csv(path, encoding="utf-8", **kwargs)
+    except (UnicodeDecodeError, pd.errors.ParserError):
+        if hasattr(path, "seek"):
+            path.seek(0)
+        try:
+            return pd.read_csv(path, encoding="latin-1", **kwargs)
+        except Exception as e:
+            raise FileIOError(
+                f"The file at {path} could not be read. Please ensure it is saved with"
+                " either UTF-8 or Latin-1 encoding."
+            ) from e
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        # Let these specific, expected errors propagate for other tests.
+        raise
 
 
 STRING_COLS = (
@@ -28,17 +85,16 @@ def _normalize_strings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def read_csv_headers(path: str, encoding: str = "utf-8") -> list[str]:
+def read_csv_headers(path: str) -> list[str]:
     """Reads only the headers of a CSV file.
 
     Args:
         path: The path to the CSV file.
-        encoding: The encoding of the file.
 
     Returns:
         A list of header strings.
     """
-    df = pd.read_csv(path, nrows=0, encoding=encoding)
+    df = _read_csv_with_fallback(path, nrows=0)
     return list(df.columns)
 
 
@@ -53,17 +109,16 @@ def validate_headers(headers: list[str]) -> None:
         raise MissingHeadersError(list(missing))
 
 
-def ensure_headers_ok(path: str, encoding: str = "utf-8") -> list[str]:
+def ensure_headers_ok(path: str) -> list[str]:
     """Convenience guard that reads headers and validates them.
 
     Args:
         path: The path to the CSV file.
-        encoding: The encoding of the file.
 
     Returns:
         The list of headers if they are valid.
     """
-    headers = read_csv_headers(path, encoding)
+    headers = read_csv_headers(path)
     validate_headers(headers)
     return headers
 
@@ -71,7 +126,6 @@ def ensure_headers_ok(path: str, encoding: str = "utf-8") -> list[str]:
 def load_csv(
     path: str,
     tz: str = "UTC",
-    encoding: str = "utf-8",
     usecols: list[str] | None = None,
     chunksize: int | None = None,
 ) -> pd.DataFrame | Iterator[pd.DataFrame]:
@@ -80,7 +134,6 @@ def load_csv(
     Args:
         path: The path to the CSV file.
         tz: The timezone to use for date columns (currently unused).
-        encoding: The encoding of the file.
         usecols: A list of columns to load. If None, all required headers are used.
         chunksize: The number of rows to read per chunk.
 
@@ -93,20 +146,19 @@ def load_csv(
     cols = usecols or sorted(list(REQUIRED_HEADERS))
     if usecols:
         # When usecols is specified, we should only validate that those columns exist.
-        csv_headers = read_csv_headers(path, encoding)
+        csv_headers = read_csv_headers(path)
         missing_cols = set(cols) - set(csv_headers)
         if missing_cols:
             raise MissingHeadersError(list(missing_cols))
     else:
         # Default behavior: ensure all required headers are present.
-        ensure_headers_ok(path, encoding)
+        ensure_headers_ok(path)
 
     if hasattr(path, "seek"):
         path.seek(0)
 
-    reader = pd.read_csv(
+    reader = _read_csv_with_fallback(
         path,
-        encoding=encoding,
         usecols=cols,
         dtype="string",
         chunksize=chunksize,
