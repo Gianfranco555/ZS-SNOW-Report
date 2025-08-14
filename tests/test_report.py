@@ -1,5 +1,4 @@
 import os
-import hashlib
 from pathlib import Path
 
 import docx
@@ -11,29 +10,7 @@ from zn_report.report import assemble_report
 from zn_report.metrics import compute_metrics
 from zn_report.charts import render_charts
 from zn_report.config import Style, Palette
-
-GOLDEN_DIR = Path(__file__).parent / "golden"
-
-def get_file_hash(path: Path) -> str:
-    """Computes the SHA256 hash of a file."""
-    sha256 = hashlib.sha256()
-    with open(path, "rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-    return sha256.hexdigest()
-
-def check_golden_hash(generated_path: Path, test_name: str):
-    """Checks a generated file's hash against its golden hash file."""
-    GOLDEN_DIR.mkdir(exist_ok=True)
-    golden_path = GOLDEN_DIR / f"{test_name}.sha256"
-    generated_hash = get_file_hash(generated_path)
-
-    if not golden_path.exists():
-        golden_path.write_text(generated_hash)
-        pytest.skip(f"Golden file '{golden_path.name}' created. Please review and commit.")
-
-    expected_hash = golden_path.read_text().strip()
-    assert generated_hash == expected_hash, f"Hash mismatch for {test_name}"
+from tests.helpers import check_golden_file_hash
 
 @pytest.fixture(scope="session")
 def sample_config() -> Config:
@@ -93,10 +70,11 @@ def test_assemble_report(
     sample_config: Config,
     processed_metrics: dict,
     sample_chart_paths: dict[str, Path],
+    monkeypatch,
 ):
     """Test the report assembly for both PDF and DOCX."""
     # Set SOURCE_DATE_EPOCH for deterministic PDF generation
-    os.environ["SOURCE_DATE_EPOCH"] = "1672531200"  # 2023-01-01
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1672531200")
     template_path = Path("zn_report/templates/report.html.j2")
 
     # --- Test PDF Generation ---
@@ -109,7 +87,7 @@ def test_assemble_report(
         output_path=pdf_output_path,
     )
     assert pdf_output_path.exists()
-    check_golden_hash(pdf_output_path, "report.pdf")
+    check_golden_file_hash(pdf_output_path, "report.pdf")
 
     # --- Test DOCX Generation ---
     docx_output_path = tmp_path / "report.docx"
@@ -122,6 +100,3 @@ def test_assemble_report(
     )
     assert docx_output_path.exists()
     _verify_docx(docx_output_path, processed_metrics)
-
-    # Clean up environment variable
-    del os.environ["SOURCE_DATE_EPOCH"]

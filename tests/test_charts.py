@@ -1,6 +1,5 @@
 """Tests for the chart generation module."""
 
-import hashlib
 import pytest
 import pandas as pd
 from pathlib import Path
@@ -8,35 +7,7 @@ from pathlib import Path
 from zn_report.charts import render_charts
 from zn_report.config import Palette, Style
 from zn_report.metrics import compute_metrics
-
-# Golden file directory
-GOLDEN_DIR = Path(__file__).parent / "golden"
-
-def get_file_hash(path: Path) -> str:
-    """Computes the SHA256 hash of a file."""
-    sha256 = hashlib.sha256()
-    with open(path, "rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-    return sha256.hexdigest()
-
-def check_golden_file(generated_path: Path, test_name: str):
-    """
-    Checks a generated file against its golden file version.
-
-    If the golden file does not exist, it's created.
-    """
-    GOLDEN_DIR.mkdir(exist_ok=True)
-    golden_path = GOLDEN_DIR / f"{test_name}.png.sha256"
-
-    generated_hash = get_file_hash(generated_path)
-
-    if not golden_path.exists():
-        golden_path.write_text(generated_hash)
-        pytest.skip(f"Golden file '{golden_path.name}' created. Please review and commit.")
-
-    expected_hash = golden_path.read_text().strip()
-    assert generated_hash == expected_hash, f"Hash mismatch for {test_name}"
+from tests.helpers import check_golden_file_hash
 
 @pytest.fixture(scope="session")
 def chart_style() -> Style:
@@ -85,7 +56,8 @@ def test_render_charts_golden(
     for chart_id, file_path in result_paths.items():
         assert file_path.exists()
         assert file_path.stat().st_size > 0
-        check_golden_file(file_path, f"chart_{chart_id}")
+        # The test name for the golden file should not include the extension
+        check_golden_file_hash(file_path, f"chart_{chart_id}.png")
 
 def test_render_charts_with_empty_data(chart_style: Style, tmp_path: Path):
     """
