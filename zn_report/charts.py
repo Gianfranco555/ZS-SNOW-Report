@@ -75,19 +75,19 @@ def _plot_open_by_state(data: dict[str, int], ax: plt.Axes, style: Style) -> Non
     # Fixed order for deterministic color mapping
     states = ["New", "In Progress", "On Hold"]
     counts = [data.get(s, 0) for s in states]
+    # Cycle through categorical colors to avoid index errors if palette is small
     colors = [
-        style.palette.categorical[0],
-        style.palette.categorical[1],
-        style.palette.categorical[2],
+        style.palette.categorical[i % len(style.palette.categorical)]
+        for i in range(len(states))
     ]
 
     # Filter out states with zero count to avoid cluttering the pie chart
-    eff_labels, eff_counts, eff_colors = [], [], []
-    for state, count, color in zip(states, counts, colors):
-        if count > 0:
-            eff_labels.append(state)
-            eff_counts.append(count)
-            eff_colors.append(color)
+    eff_items = [
+        (state, count, color)
+        for state, count, color in zip(states, counts, colors)
+        if count > 0
+    ]
+    eff_labels, eff_counts, eff_colors = zip(*eff_items) if eff_items else ([], [], [])
 
     ax.pie(
         eff_counts,
@@ -172,6 +172,7 @@ def render_charts(metrics: dict, style: Style, out_dir: Path) -> dict[str, Path]
     for chart_id, definition in chart_definitions.items():
         logger.info(f"Generating chart: {chart_id}")
         fig, ax = plt.subplots(figsize=(6, 4))
+        filepath = out_dir / f"{chart_id}.png"
 
         try:
             # Call the specific plot function
@@ -189,20 +190,19 @@ def render_charts(metrics: dict, style: Style, out_dir: Path) -> dict[str, Path]
 
             # Save the figure
             plt.tight_layout()
-            filepath = out_dir / f"{chart_id}.png"
             fig.savefig(filepath, bbox_inches="tight")
-            chart_paths[chart_id] = filepath
             logger.info(f"Saved chart to {filepath}")
 
         except Exception as e:
             logger.error(f"Failed to generate chart {chart_id}: {e}", exc_info=True)
             # In case of error, create a placeholder image with error text
+            ax.cla()  # Clear axis to remove any partially drawn plots
             ax.text(0.5, 0.5, f"Error generating chart:\n{e}", ha="center", va="center", color="red")
-            filepath = out_dir / f"{chart_id}_error.png"
+            ax.set_axis_off()  # Hide axes for a cleaner error image
             fig.savefig(filepath)
-            chart_paths[chart_id] = filepath
 
         finally:
+            chart_paths[chart_id] = filepath
             plt.close(fig)
 
     return chart_paths
