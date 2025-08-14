@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zn-report"
+version = "0.1.0"
+description = "Zscaler ServiceNow Incident Reporter (CLI, Python ≥3.10)"
+requires-python = ">=3.10"
+
+[project.scripts]
+zn-report = "zn_report.cli:cli_main"
+
+[tool.setuptools]
+packages = ["zn_report"]

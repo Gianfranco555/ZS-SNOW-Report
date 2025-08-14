@@ -1,0 +1,4 @@
+number,opened_at,resolved_at,state,sys_tags,close_code,assigned_to,u_original_assignment_group,comments,work_notes
+INC001,2025-07-15T10:00:00,2025-07-15T12:00:00,Resolved,"tag1, tag2",Resolved by User,User A,Service Desk,,
+INC002,2025-07-16T11:00:00,,In Progress,"tag3",,,DVN-Global-Zscaler-Operations,,
+INC003,2025-07-17T09:00:00,2025-07-17T10:30:00,Resolved,"",Resolved by Automation,User B,Service Desk,,
