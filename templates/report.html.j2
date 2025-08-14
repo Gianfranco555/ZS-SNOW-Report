@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ config.title }}</title>
+    <style>
+        body {
+            font-family: {{ config.style.font_family }};
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: {{ config.style.palette.primary }};
+        }
+        .cover {
+            text-align: center;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        .container {
+            padding: 2em;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1em;
+            margin-bottom: 2em;
+        }
+        .kpi-card {
+            border: 1px solid {{ config.style.palette.muted }};
+            padding: 1em;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .kpi-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: {{ config.style.palette.accent }};
+        }
+        .kpi-card .label {
+            font-size: 1em;
+            color: {{ config.style.palette.secondary }};
+        }
+        .chart-container {
+            margin-bottom: 2em;
+            text-align: center;
+        }
+        .chart-container img {
+            max-width: 100%;
+            height: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2em;
+        }
+        th, td {
+            border: 1px solid {{ config.style.palette.muted }};
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: {{ config.style.palette.primary }};
+            color: white;
+        }
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.8em;
+            color: {{ config.style.palette.secondary }};
+        }
+    </style>
+</head>
+<body>
+    <div class="cover">
+        {% if config.branding.logo_path %}
+        <img src="{{ config.branding.logo_path }}" alt="Logo" style="max-width: 200px; margin-bottom: 2em;">
+        {% endif %}
+        <h1>{{ config.title }}</h1>
+        <p>Date: {{ metrics.metadata.start }} to {{ metrics.metadata.end }}</p>
+    </div>
+    <div class="page-break"></div>
+
+    <div class="container">
+        <h2>Executive KPIs</h2>
+        <div class="kpi-grid">
+            {% for key, value in metrics.kpis.items() %}
+            <div class="kpi-card">
+                <div class="value">{{ value }}</div>
+                <div class="label">{{ key.replace('_', ' ') | title }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <h2>Charts</h2>
+        {% for id, path in charts.items() %}
+        <div class="chart-container">
+            <h3>{{ id.replace('_', ' ') | title }}</h3>
+            <img src="{{ path }}">
+        </div>
+        {% endfor %}
+
+        <div class="page-break"></div>
+
+        <h2>Data Tables</h2>
+        {% for name, data in metrics.tables.items() %}
+        <div class="table-container">
+            <h3>{{ name.replace('_', ' ') | title }}</h3>
+            {% if data %}
+            <table>
+                <thead>
+                    <tr>
+                        {% for header in data[0] %}
+                        <th>{{ header | title }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data[1:] %}
+                    <tr>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No data available.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if config.branding.footer %}
+    <footer>
+        <p>{{ config.branding.footer }}</p>
+    </footer>
+    {% endif %}
+</body>
+</html>
