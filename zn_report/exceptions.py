@@ -17,10 +17,7 @@ class InvalidArgumentsError(CLIError):
 class AllRowsDroppedError(CLIError):
     """Exception when all rows are dropped."""
 
-    def __init__(
-        self,
-        message: str = "All rows were dropped after date parsing. Cannot generate report.",
-    ):
+    def __init__(self, message: str = "All rows were dropped after date parsing. Cannot generate report."):
         super().__init__(message, exit_code=3)
 
 
