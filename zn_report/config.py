@@ -65,27 +65,6 @@ class Layout:
 
 
 @dataclass
-class Summary:
-    """Summary configuration."""
-
-    class Provider(str, Enum):
-        """Providers for summary generation."""
-
-        NONE = "none"
-        LOCAL = "local"
-        OPENAI = "openai"
-
-    enabled: bool = True
-    provider: Provider = Provider.LOCAL
-    max_chars: int = 700
-
-    def __post_init__(self):
-        """Validate summary configuration."""
-        if self.max_chars <= 0:
-            raise ValueError("summary.max_chars must be > 0")
-
-
-@dataclass
 class Config:
     """Top-level configuration."""
 
@@ -93,7 +72,6 @@ class Config:
     branding: Branding
     style: Style
     layout: Layout
-    summary: Summary
 
 
 DEFAULT_CONFIG = Config(
@@ -104,7 +82,6 @@ DEFAULT_CONFIG = Config(
         font_family=DEFAULT_FONT_FAMILY,
     ),
     layout=Layout(),
-    summary=Summary(),
 )
 
 
@@ -138,7 +115,7 @@ def coerce_config(d: dict) -> Config:
     # --- Main Coercion and Construction ---
     try:
         # Validate that nested sections are dictionaries
-        for section in ["branding", "layout", "style", "summary"]:
+        for section in ["branding", "layout", "style"]:
             if not isinstance(cfg.get(section), dict):
                 raise ConfigurationError(
                     f"Config section '{section}' must be a dictionary."
@@ -148,10 +125,6 @@ def coerce_config(d: dict) -> Config:
             raise ConfigurationError(
                 "Config section 'style.palette' must be a dictionary."
             )
-
-        # Coerce provider string to Enum before passing to constructor
-        summary_cfg = cfg["summary"]
-        summary_cfg["provider"] = Summary.Provider(summary_cfg["provider"])
 
         # Let dataclass constructors handle the rest.
         # __post_init__ will run validation.
@@ -163,7 +136,6 @@ def coerce_config(d: dict) -> Config:
                 font_family=cfg["style"]["font_family"],
             ),
             layout=Layout(**cfg["layout"]),
-            summary=Summary(**cfg["summary"]),
         )
     except (ValueError, TypeError, KeyError) as e:
         # Catch validation errors from __post_init__ or construction errors
