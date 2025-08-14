@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 import pandas as pd
@@ -36,7 +37,9 @@ def _get_top_tags(series: pd.Series, n: int) -> list[dict[str, Any]]:
     return [{"tag": tag, "count": count} for tag, count in sorted_tags[:n]]
 
 
-def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: str) -> dict[str, Any]:
+def compute_metrics(
+    df: pd.DataFrame, start: str | date, end: str | date, tz: str
+) -> dict[str, Any]:
     """
     Computes UPT v3 metrics from a DataFrame of ticket data.
 
@@ -75,7 +78,9 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     # The UPT v3 spec requires this warning as its methodology, which focuses on
     # resolved tickets, can undercount tickets that were opened but not resolved
     # within the same window.
-    warnings = ["Reports based on an updated-date window may undercount newly opened tickets."]
+    warnings = [
+        "Reports based on an updated-date window may undercount newly opened tickets."
+    ]
 
     # 4. Assemble metadata payload
     # Note: buckets list can be empty if start > end, though upstream logic
@@ -110,24 +115,35 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
             hour=23, minute=59, second=59, microsecond=999999
         )
 
-        resolved_mask = proc_df["resolved_at"].between(start_ts, end_ts, inclusive="both")
+        resolved_mask = proc_df["resolved_at"].between(
+            start_ts, end_ts, inclusive="both"
+        )
         # Drop rows where mask is NA (i.e., resolved_at is NaT)
         resolved_df = proc_df[resolved_mask.fillna(False)].copy()
 
     # 6. Calculate KPIs
     resolved_count = len(resolved_df)
-    resolved_per_day_avg = round(resolved_count / calendar_days, 2) if calendar_days > 0 else 0.0
+    resolved_per_day_avg = (
+        round(resolved_count / calendar_days, 2) if calendar_days > 0 else 0.0
+    )
 
     # TTR (Time to Resolution) in hours
     if not resolved_df.empty and "opened_at" in resolved_df:
         # Ensure both date columns are present before calculating delta
         ttr_deltas = resolved_df["resolved_at"] - resolved_df["opened_at"]
         # Convert Timedelta to total hours, then take mean. Result is float.
-        avg_ttr_hours = ttr_deltas.dt.total_seconds().mean() / 3600
-        if pd.isna(avg_ttr_hours):  # Mean of empty or all-NaT series is NaN
-            avg_ttr_hours = 0.0
+        avg_ttr_hours_float = ttr_deltas.dt.total_seconds().mean() / 3600
+        if pd.isna(avg_ttr_hours_float):  # Mean of empty or all-NaT series is NaN
+            avg_ttr_hours = 0
+        else:
+            # Round half-up to nearest whole number
+            avg_ttr_hours = int(
+                Decimal(str(avg_ttr_hours_float)).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                )
+            )
     else:
-        avg_ttr_hours = 0.0
+        avg_ttr_hours = 0
 
     # Open states: count tickets that are NOT resolved yet, by state.
     # Per spec, this is case-insensitive for a fixed list of states.
@@ -137,7 +153,9 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     if "state" in open_df.columns and not open_df.empty:
         # Normalize state column for case-insensitive matching
         state_counts = open_df["state"].str.lower().value_counts()
-        open_by_state = {state: int(state_counts.get(state.lower(), 0)) for state in open_states}
+        open_by_state = {
+            state: int(state_counts.get(state.lower(), 0)) for state in open_states
+        }
     else:
         open_by_state = {state: 0 for state in open_states}
 
@@ -146,9 +164,8 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
     kpis = {
         "resolved_count": resolved_count,
         "resolved_per_day_avg": resolved_per_day_avg,
-        "avg_ttr_hours": float(avg_ttr_hours),
-        "open_by_state": open_by_state,
-        "open_by_state_total": open_by_state_total,
+        "avg_ttr_hours": avg_ttr_hours,
+        "Total Open Tickets": open_by_state_total,
     }
 
     # 7. Calculate Time Series data
@@ -160,7 +177,8 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
         resolved_daily_counts = {}
 
     resolved_per_day = [
-        {"date": b.strftime("%Y-%m-%d"), "count": resolved_daily_counts.get(b, 0)} for b in buckets
+        {"date": b.strftime("%Y-%m-%d"), "count": resolved_daily_counts.get(b, 0)}
+        for b in buckets
     ]
 
     # daily_opened: count of tickets opened on each calendar day in window
@@ -176,7 +194,8 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
         opened_daily_counts = {}
 
     daily_opened = [
-        {"date": b.strftime("%Y-%m-%d"), "count": opened_daily_counts.get(b, 0)} for b in buckets
+        {"date": b.strftime("%Y-%m-%d"), "count": opened_daily_counts.get(b, 0)}
+        for b in buckets
     ]
 
     # opened_vs_resolved: combination of daily opened and resolved counts
@@ -194,10 +213,22 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
 
     # 8. Calculate Tables
     # Table: open_by_state
-    open_by_state_table = [
-        {"state": state, "count": count} for state, count in sorted(open_by_state.items())
-        if count > 0
-    ]
+    if open_by_state_total > 0:
+        # Sort by count (desc), then state name (asc)
+        sorted_states = sorted(
+            open_by_state.items(), key=lambda item: (-item[1], item[0])
+        )
+        open_by_state_table = [
+            {
+                "state": state,
+                "count": count,
+                "percent": round((count / open_by_state_total) * 100, 1),
+            }
+            for state, count in sorted_states
+            if count > 0
+        ]
+    else:
+        open_by_state_table = []
 
     tables = {
         "resolved_by_assignee": [],
@@ -212,7 +243,9 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
             assignee_counts = resolved_df["assigned_to"].value_counts()
             df_assignees = assignee_counts.reset_index()
             df_assignees.columns = ["assignee", "count"]
-            df_assignees = df_assignees.sort_values(by=["count", "assignee"], ascending=[False, True])
+            df_assignees = df_assignees.sort_values(
+                by=["count", "assignee"], ascending=[False, True]
+            )
             tables["resolved_by_assignee"] = [
                 {"assignee": row.assignee, "count": int(row.count)}
                 for row in df_assignees.itertuples()
@@ -224,23 +257,32 @@ def compute_metrics(df: pd.DataFrame, start: str | date, end: str | date, tz: st
 
         # Table: Top 5 Resolution Codes
         if "close_code" in resolved_df.columns:
-            codes = resolved_df["close_code"].fillna("Unspecified").replace("", "Unspecified")
+            codes = (
+                resolved_df["close_code"]
+                .fillna("Unspecified")
+                .replace("", "Unspecified")
+            )
             code_counts = codes.value_counts()
             df_codes = code_counts.reset_index()
             df_codes.columns = ["code", "count"]
-            df_codes = df_codes.sort_values(by=["count", "code"], ascending=[False, True])
+            df_codes = df_codes.sort_values(
+                by=["count", "code"], ascending=[False, True]
+            )
             top_5 = df_codes.head(5)
             tables["top_5_resolution_codes"] = [
-                {"code": row.code, "count": int(row.count)} for row in top_5.itertuples()
+                {"code": row.code, "count": int(row.count)}
+                for row in top_5.itertuples()
             ]
 
         # Table: Queue Origin
         if "u_original_assignment_group" in resolved_df.columns:
             # Create a temporary column for categorization
             resolved_df["origin"] = resolved_df["u_original_assignment_group"].apply(
-                lambda x: "DVN-Global-Zscaler-Operations"
-                if pd.notna(x) and x.lower() == "dvn-global-zscaler-operations"
-                else "From Service Desk"
+                lambda x: (
+                    "DVN-Global-Zscaler-Operations"
+                    if pd.notna(x) and x.lower() == "dvn-global-zscaler-operations"
+                    else "From Service Desk"
+                )
             )
 
             origin_counts = resolved_df["origin"].value_counts().reset_index()

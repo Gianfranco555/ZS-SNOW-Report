@@ -22,37 +22,69 @@ def _create_docx_report(
     document.add_heading("Executive KPIs", level=2)
     kpis = metrics.get("kpis", {})
     for key, value in kpis.items():
-        document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
+        label = key if " " in key else key.replace("_", " ").title()
+        p_text = f"{label}: {value}"
+        if key == "avg_ttr_hours":
+            p_text += " hours"
+        document.add_paragraph(p_text)
+
+    # Open by State
+    open_by_state_data = metrics.get("tables", {}).get("open_by_state", [])
+    if open_by_state_data:
+        document.add_heading("Open by State", level=2)
+        for item in open_by_state_data:
+            document.add_paragraph(
+                f"{item['state']} — {item['count']} ({item['percent']}%)",
+                style="List Bullet",
+            )
 
     # Charts
     document.add_heading("Charts", level=2)
     for chart_id, chart_path in chart_paths.items():
-        document.add_paragraph(chart_id.replace("_", " ").title())
+        document.add_heading(chart_id.replace("_", " ").title(), level=3)
         document.add_picture(str(chart_path), width=Inches(6.0))
 
     # Tables
     document.add_heading("Data Tables", level=2)
     tables = metrics.get("tables", {})
     for table_name, table_data in tables.items():
-        document.add_paragraph(table_name.replace("_", " ").title())
-        if not table_data:
+        if table_name == "open_by_state":
             continue
 
-        # Create table
-        header = table_data[0]
-        records = table_data[1:]
-        table = document.add_table(rows=1, cols=len(header))
+        document.add_heading(table_name.replace("_", " ").title(), level=3)
+        if not table_data:
+            document.add_paragraph("No data available.")
+            continue
+
+        headers = list(table_data[0].keys())
+        table = document.add_table(rows=1, cols=len(headers))
         table.style = "Table Grid"
 
         # Populate header
-        for i, col_name in enumerate(header):
-            table.cell(0, i).text = str(col_name).title()
+        for i, header in enumerate(headers):
+            table.cell(0, i).text = header.replace("_", " ").title()
 
         # Populate rows
-        for record in records:
+        for row_data in table_data:
             row_cells = table.add_row().cells
-            for i, cell_value in enumerate(record):
-                row_cells[i].text = str(cell_value)
+            for i, header in enumerate(headers):
+                row_cells[i].text = str(row_data.get(header, ""))
+
+        # Add total row if 'count' column exists
+        if "count" in headers:
+            total = sum(row.get("count", 0) for row in table_data)
+            total_cells = table.add_row().cells
+            count_idx = headers.index("count")
+
+            # Handle case where 'count' is the first column
+            if count_idx == 0:
+                total_cells[0].text = f"Total: {total}"
+                total_cells[0].paragraphs[0].runs[0].bold = True
+            else:
+                total_cells[0].text = "Total"
+                total_cells[0].paragraphs[0].runs[0].bold = True
+                total_cells[count_idx].text = str(total)
+                total_cells[count_idx].paragraphs[0].runs[0].bold = True
 
     if config.branding.footer:
         section = document.sections[0]

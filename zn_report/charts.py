@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -37,20 +38,25 @@ def _apply_common_styles(
     ax.set_ylabel(ylabel, fontsize=9, color=style.palette.muted)
 
     ax.grid(axis="y", linestyle="--", color=style.palette.muted, alpha=0.5)
-    ax.tick_params(axis="both", which="major", labelsize=8, labelcolor=style.palette.secondary)
+    ax.tick_params(
+        axis="both", which="major", labelsize=8, labelcolor=style.palette.secondary
+    )
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.spines["left"].set_color(style.palette.muted)
     ax.spines["bottom"].set_color(style.palette.muted)
 
 
-def _plot_resolved_per_day(data: list[dict[str, Any]], ax: plt.Axes, style: Style) -> None:
+def _plot_resolved_per_day(
+    data: list[dict[str, Any]], ax: plt.Axes, style: Style
+) -> None:
     """C1: Plot resolved tickets per day as a bar chart."""
     if not data:
         return
     df = pd.DataFrame(data)
     df["date"] = pd.to_datetime(df["date"])
     ax.bar(df["date"], df["count"], color=style.palette.primary)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax.figure.autofmt_xdate()
 
 
@@ -62,6 +68,7 @@ def _plot_opened_vs_resolved(data: dict[str, list], ax: plt.Axes, style: Style) 
     ax.plot(dates, data["opened"], label="Opened", color=style.palette.accent)
     ax.plot(dates, data["resolved"], label="Resolved", color=style.palette.primary)
     ax.legend()
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     ax.figure.autofmt_xdate()
 
 
@@ -100,7 +107,9 @@ def _plot_open_by_state(data: dict[str, int], ax: plt.Axes, style: Style) -> Non
     ax.axis("equal")  # Equal aspect ratio ensures that pie is drawn as a circle.
 
 
-def _plot_resolved_by_assignee(data: list[dict[str, Any]], ax: plt.Axes, style: Style) -> None:
+def _plot_resolved_by_assignee(
+    data: list[dict[str, Any]], ax: plt.Axes, style: Style
+) -> None:
     """C4: Plot top 10 resolved by assignee as a horizontal bar chart."""
     if not data:
         return
@@ -150,11 +159,6 @@ def render_charts(metrics: dict, style: Style, out_dir: Path) -> dict[str, Path]
             "xlabel": "Date",
             "ylabel": "Tickets",
         },
-        "open_by_state": {
-            "func": _plot_open_by_state,
-            "data": metrics.get("kpis", {}).get("open_by_state", {}),
-            "title": "Open Tickets by State",
-        },
         "resolved_by_assignee": {
             "func": _plot_resolved_by_assignee,
             "data": metrics.get("tables", {}).get("resolved_by_assignee", []),
@@ -197,7 +201,14 @@ def render_charts(metrics: dict, style: Style, out_dir: Path) -> dict[str, Path]
             logger.error(f"Failed to generate chart {chart_id}: {e}", exc_info=True)
             # In case of error, create a placeholder image with error text
             ax.cla()  # Clear axis to remove any partially drawn plots
-            ax.text(0.5, 0.5, f"Error generating chart:\n{e}", ha="center", va="center", color="red")
+            ax.text(
+                0.5,
+                0.5,
+                f"Error generating chart:\n{e}",
+                ha="center",
+                va="center",
+                color="red",
+            )
             ax.set_axis_off()  # Hide axes for a cleaner error image
             fig.savefig(filepath)
 

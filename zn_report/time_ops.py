@@ -1,6 +1,5 @@
 from __future__ import annotations
-from datetime import date, datetime, timedelta
-from typing import Iterable, List
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 import pandas as pd
 from pandas.api.types import DatetimeTZDtype
@@ -65,6 +64,7 @@ def derive_buckets(start: date | str, end: date | str, tz: str) -> list[date]:
     Return an inclusive list of calendar dates from start..end (YYYY-MM-DD window).
     'tz' is accepted for interface parity; buckets themselves are date-only.
     """
+
     def _to_date(d) -> date:
         if isinstance(d, date):
             return d

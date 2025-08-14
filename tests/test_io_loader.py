@@ -25,29 +25,59 @@ def csv_content() -> str:
     headers = sorted(list(REQUIRED_HEADERS))
     data = [
         {
-            "sys_tags": "  tag1 ", "comments": " c1 ", "work_notes": " w1 ", "assigned_to": " ",
-            "state": " new ", "u_original_assignment_group": " g1 ", "close_code": " cc1 ",
-            "opened_at": "2023-01-01", "resolved_at": "2023-01-01"
+            "sys_tags": "  tag1 ",
+            "comments": " c1 ",
+            "work_notes": " w1 ",
+            "assigned_to": " ",
+            "state": " new ",
+            "u_original_assignment_group": " g1 ",
+            "close_code": " cc1 ",
+            "opened_at": "2023-01-01",
+            "resolved_at": "2023-01-01",
         },
         {
-            "sys_tags": "tag2", "comments": "c2", "work_notes": "w2", "assigned_to": "user1",
-            "state": "closed", "u_original_assignment_group": "g2", "close_code": "cc2",
-            "opened_at": "2023-01-02", "resolved_at": "2023-01-02"
+            "sys_tags": "tag2",
+            "comments": "c2",
+            "work_notes": "w2",
+            "assigned_to": "user1",
+            "state": "closed",
+            "u_original_assignment_group": "g2",
+            "close_code": "cc2",
+            "opened_at": "2023-01-02",
+            "resolved_at": "2023-01-02",
         },
         {
-            "sys_tags": " tag3", "comments": "c3 ", "work_notes": " w3 ", "assigned_to": "  user2  ",
-            "state": "  pending  ", "u_original_assignment_group": " g3 ", "close_code": " cc3 ",
-            "opened_at": "2023-01-03", "resolved_at": "2023-01-03"
+            "sys_tags": " tag3",
+            "comments": "c3 ",
+            "work_notes": " w3 ",
+            "assigned_to": "  user2  ",
+            "state": "  pending  ",
+            "u_original_assignment_group": " g3 ",
+            "close_code": " cc3 ",
+            "opened_at": "2023-01-03",
+            "resolved_at": "2023-01-03",
         },
         {
-            "sys_tags": "tag4", "comments": "c4", "work_notes": "w4", "assigned_to": "",
-            "state": "closed", "u_original_assignment_group": "g4", "close_code": "cc4",
-            "opened_at": "2023-01-04", "resolved_at": "2023-01-04"
+            "sys_tags": "tag4",
+            "comments": "c4",
+            "work_notes": "w4",
+            "assigned_to": "",
+            "state": "closed",
+            "u_original_assignment_group": "g4",
+            "close_code": "cc4",
+            "opened_at": "2023-01-04",
+            "resolved_at": "2023-01-04",
         },
         {
-            "sys_tags": "tag5", "comments": "c5", "work_notes": "w5", "assigned_to": "user3",
-            "state": "new", "u_original_assignment_group": "g5", "close_code": "cc5",
-            "opened_at": "2023-01-05", "resolved_at": "2023-01-05"
+            "sys_tags": "tag5",
+            "comments": "c5",
+            "work_notes": "w5",
+            "assigned_to": "user3",
+            "state": "new",
+            "u_original_assignment_group": "g5",
+            "close_code": "cc5",
+            "opened_at": "2023-01-05",
+            "resolved_at": "2023-01-05",
         },
     ]
     # Create a DataFrame to easily convert to a CSV string with the correct header order.
@@ -60,7 +90,9 @@ class TestIoLoaderHermetic:
         """Test that loading a CSV with missing headers raises MissingHeadersError."""
         # Create a CSV with one required header missing.
         headers = sorted(list(REQUIRED_HEADERS - {"sys_tags"}))
-        csv_file = io.StringIO(",".join(headers) + "\n" + ",".join(["data"] * len(headers)))
+        csv_file = io.StringIO(
+            ",".join(headers) + "\n" + ",".join(["data"] * len(headers))
+        )
 
         with pytest.raises(MissingHeadersError) as excinfo:
             load_csv(csv_file)
@@ -87,14 +119,12 @@ class TestIoLoaderHermetic:
         expected_assigned_to = pd.Series(
             ["Unassigned", "user1", "user2", "Unassigned", "user3"],
             name="assigned_to",
-            dtype="string"
+            dtype="string",
         )
         pd.testing.assert_series_equal(df["assigned_to"], expected_assigned_to)
 
         expected_sys_tags = pd.Series(
-            ["tag1", "tag2", "tag3", "tag4", "tag5"],
-            name="sys_tags",
-            dtype="string"
+            ["tag1", "tag2", "tag3", "tag4", "tag5"], name="sys_tags", dtype="string"
         )
         pd.testing.assert_series_equal(df["sys_tags"], expected_sys_tags)
 
@@ -223,7 +253,11 @@ class TestIoLoader(unittest.TestCase):
         # Check whitespace stripping
         pd.testing.assert_series_equal(
             normalized_df["comments"],
-            pd.Series(["leading", "trailing", "both", "no space"], name="comments", dtype="string"),
+            pd.Series(
+                ["leading", "trailing", "both", "no space"],
+                name="comments",
+                dtype="string",
+            ),
         )
         pd.testing.assert_series_equal(
             normalized_df["work_notes"],
@@ -231,14 +265,20 @@ class TestIoLoader(unittest.TestCase):
         )
         pd.testing.assert_series_equal(
             normalized_df["state"],
-            pd.Series(["New", "Closed", "In Progress", ""], name="state", dtype="string"),
+            pd.Series(
+                ["New", "Closed", "In Progress", ""], name="state", dtype="string"
+            ),
         )
 
         # Check 'assigned_to' special handling
         expected_assigned_to = pd.Series(
-            ["test", "Unassigned", "Unassigned", "Unassigned"], name="assigned_to", dtype="string"
+            ["test", "Unassigned", "Unassigned", "Unassigned"],
+            name="assigned_to",
+            dtype="string",
         )
-        pd.testing.assert_series_equal(normalized_df["assigned_to"], expected_assigned_to)
+        pd.testing.assert_series_equal(
+            normalized_df["assigned_to"], expected_assigned_to
+        )
 
         # Check that columns not in STRING_COLS are untouched
         self.assertTrue("non_string_col" in normalized_df.columns)
@@ -358,7 +398,7 @@ class TestIoLoader(unittest.TestCase):
 
         self.assertIn(
             "could not be read. Please ensure it is saved with either UTF-8 or Latin-1 encoding.",
-            str(excinfo.value)
+            str(excinfo.value),
         )
 
     def test_read_csv_with_truly_invalid_encoding_raises_error(self):
