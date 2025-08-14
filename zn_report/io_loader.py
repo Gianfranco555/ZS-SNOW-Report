@@ -5,15 +5,19 @@ from zn_report.constants import REQUIRED_HEADERS
 from zn_report.exceptions import MissingHeadersError, FileIOError
 
 
-import io
 import os
 import codecs
+from pathlib import Path
+from typing import IO, Union
 
-def _read_csv_with_fallback(path: str, **kwargs) -> pd.DataFrame | Iterator[pd.DataFrame]:
+def _read_csv_with_fallback(
+    path: Union[str, Path, IO], **kwargs
+) -> pd.DataFrame | Iterator[pd.DataFrame]:
     """Reads a CSV file with fallback encoding.
 
-    Handles both file paths and file-like objects, trying UTF-8 first and
-    falling back to Latin-1.
+    This is a memory-efficient implementation that lets pandas handle file I/O.
+    It tries to read the file with UTF-8 encoding first, then falls back to
+    Latin-1 if a UnicodeDecodeError or ParserError is encountered.
 
     Args:
         path: The path to the CSV file or a file-like object.
@@ -27,43 +31,35 @@ def _read_csv_with_fallback(path: str, **kwargs) -> pd.DataFrame | Iterator[pd.D
         FileNotFoundError: If the file path does not exist.
         pd.errors.EmptyDataError: If the file is empty.
     """
-    # Handle file paths (str or PathLike)
+    # For file paths, we can efficiently sniff for an unsupported BOM.
     if isinstance(path, (str, os.PathLike)):
         try:
-            with open(path, 'rb') as f:
-                content = f.read()
+            with open(path, "rb") as f:
+                bom = f.read(4)
+            if bom.startswith(codecs.BOM_UTF16_LE) or bom.startswith(codecs.BOM_UTF16_BE):
+                raise FileIOError(
+                    f"The file at {path} could not be read. Please ensure it is saved with"
+                    " either UTF-8 or Latin-1 encoding."
+                )
         except FileNotFoundError:
-            raise  # Propagate for tests that expect this
+            # Let pd.read_csv handle the FileNotFoundError to be consistent.
+            pass
 
-        if not content:
-            return pd.read_csv(io.StringIO(''), **kwargs)
-
-        if content.startswith(codecs.BOM_UTF16_LE) or content.startswith(codecs.BOM_UTF16_BE):
-            raise FileIOError(f"The file at {path} could not be read. Please ensure it is saved with either UTF-8 or Latin-1 encoding.")
-
-        try:
-            decoded_content = content.decode('utf-8')
-            return pd.read_csv(io.StringIO(decoded_content), **kwargs)
-        except (UnicodeDecodeError, pd.errors.ParserError):
-            try:
-                decoded_content = content.decode('latin-1')
-                return pd.read_csv(io.StringIO(decoded_content), **kwargs)
-            except Exception as e:
-                raise FileIOError(f"The file at {path} could not be read. Please ensure it is saved with either UTF-8 or Latin-1 encoding.") from e
-
-    # Handle file-like objects (used in tests)
-    else:
-        if hasattr(path, 'seek'):
+    try:
+        return pd.read_csv(path, encoding="utf-8", **kwargs)
+    except (UnicodeDecodeError, pd.errors.ParserError):
+        if hasattr(path, "seek"):
             path.seek(0)
         try:
-            return pd.read_csv(path, encoding='utf-8', **kwargs)
-        except (UnicodeDecodeError, pd.errors.ParserError):
-            if hasattr(path, 'seek'):
-                path.seek(0)
-            try:
-                return pd.read_csv(path, encoding='latin-1', **kwargs)
-            except Exception as e:
-                raise FileIOError(f"The file at {path} could not be read. Please ensure it is saved with either UTF-8 or Latin-1 encoding.") from e
+            return pd.read_csv(path, encoding="latin-1", **kwargs)
+        except Exception as e:
+            raise FileIOError(
+                f"The file at {path} could not be read. Please ensure it is saved with"
+                " either UTF-8 or Latin-1 encoding."
+            ) from e
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        # Let these specific, expected errors propagate for other tests.
+        raise
 
 
 STRING_COLS = (
