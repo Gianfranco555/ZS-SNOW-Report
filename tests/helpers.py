@@ -6,6 +6,7 @@ import pytest
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
+
 def get_file_hash(path: Path) -> str:
     """Computes the SHA256 hash of a file."""
     sha256 = hashlib.sha256()
@@ -13,6 +14,7 @@ def get_file_hash(path: Path) -> str:
         while chunk := f.read(8192):
             sha256.update(chunk)
     return sha256.hexdigest()
+
 
 def check_golden_file_hash(generated_path: Path, test_name: str):
     """
@@ -28,7 +30,9 @@ def check_golden_file_hash(generated_path: Path, test_name: str):
 
     if not golden_path.exists():
         golden_path.write_text(generated_hash)
-        pytest.skip(f"Golden file '{golden_path.name}' created. Please review and commit.")
+        pytest.skip(
+            f"Golden file '{golden_path.name}' created. Please review and commit."
+        )
 
     expected_hash = golden_path.read_text().strip()
     assert generated_hash == expected_hash, f"Hash mismatch for {test_name}"

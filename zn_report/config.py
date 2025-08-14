@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from enum import Enum
 from typing import Any
 
 from zn_report.constants import (

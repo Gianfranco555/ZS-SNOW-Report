@@ -10,6 +10,7 @@ import codecs
 from pathlib import Path
 from typing import IO, Union
 
+
 def _read_csv_with_fallback(
     path: Union[str, Path, IO], **kwargs
 ) -> pd.DataFrame | Iterator[pd.DataFrame]:
@@ -36,7 +37,9 @@ def _read_csv_with_fallback(
         try:
             with open(path, "rb") as f:
                 bom = f.read(4)
-            if bom.startswith(codecs.BOM_UTF16_LE) or bom.startswith(codecs.BOM_UTF16_BE):
+            if bom.startswith(codecs.BOM_UTF16_LE) or bom.startswith(
+                codecs.BOM_UTF16_BE
+            ):
                 raise FileIOError(
                     f"The file at {path} could not be read. Please ensure it is saved with"
                     " either UTF-8 or Latin-1 encoding."

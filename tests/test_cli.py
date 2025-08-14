@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from zn_report.cli import cli_main
+from zn_report.exceptions import FileIOError
+
 # Path to the sample data
 DATA_DIR = Path(__file__).parent / "data"
 VALID_CSV = DATA_DIR / "sample_incidents.csv"
@@ -31,7 +34,9 @@ def test_cli_successful_run(tmp_path):
 
     result = run_cli(args)
 
-    assert result.returncode == 0, f"CLI should exit with 0 on success. Stdout: {result.stdout}"
+    assert (
+        result.returncode == 0
+    ), f"CLI should exit with 0 on success. Stdout: {result.stdout}"
     assert output_pdf.exists(), "The report file should be created."
 
     # Check for key success messages in stdout
@@ -55,7 +60,9 @@ def test_cli_invalid_date_range():
     result = run_cli(args)
 
     assert result.returncode == 2
-    assert "Start date (2025-08-01) cannot be after end date (2025-07-31)" in result.stdout
+    assert (
+        "Start date (2025-08-01) cannot be after end date (2025-07-31)" in result.stdout
+    )
 
 
 def test_cli_csv_not_found():
@@ -112,11 +119,9 @@ def test_cli_all_rows_dropped():
     assert "All rows were dropped after date parsing" in result.stdout
 
 
-from zn_report.cli import cli_main
-from zn_report.exceptions import FileIOError
-
 def test_cli_render_failure(monkeypatch, caplog):
     """Test that the CLI exits with code 4 on a rendering failure."""
+
     # Simulate an error during the report assembly phase
     def mock_assemble_report(*args, **kwargs):
         raise ValueError("Simulated rendering error")
@@ -143,15 +148,19 @@ def test_cli_render_failure(monkeypatch, caplog):
     with pytest.raises(SystemExit) as e:
         cli_main()
 
-    assert e.type == SystemExit
+    assert e.type is SystemExit
     assert e.value.code == 4
 
     # Check that the error message was logged
-    assert "Error during report rendering/assembly: Simulated rendering error" in caplog.text
+    assert (
+        "Error during report rendering/assembly: Simulated rendering error"
+        in caplog.text
+    )
 
 
 def test_cli_io_error_during_processing(monkeypatch, caplog):
     """Test that the CLI exits with code 5 on an I/O error during processing."""
+
     # This tests a more subtle I/O error than a simple file-not-found.
     # We mock the underlying pandas reader to raise an error during iteration.
     def mock_read_csv(*args, **kwargs):
@@ -166,7 +175,7 @@ def test_cli_io_error_during_processing(monkeypatch, caplog):
         [
             "zn-report",
             "--csv",
-            str(VALID_CSV), # File exists, but will fail during read
+            str(VALID_CSV),  # File exists, but will fail during read
             "--start",
             "2025-07-01",
             "--end",
@@ -177,6 +186,6 @@ def test_cli_io_error_during_processing(monkeypatch, caplog):
     with pytest.raises(SystemExit) as e:
         cli_main()
 
-    assert e.type == SystemExit
+    assert e.type is SystemExit
     assert e.value.code == 5
     assert "Simulated read error" in caplog.text

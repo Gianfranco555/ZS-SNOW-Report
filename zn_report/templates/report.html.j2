@@ -94,11 +94,22 @@
         <div class="kpi-grid">
             {% for key, value in metrics.kpis.items() %}
             <div class="kpi-card">
-                <div class="value">{{ value }}</div>
+                <div class="value">
+                    {{ value }}{% if key == 'avg_ttr_hours' %} hours{% endif %}
+                </div>
                 <div class="label">{{ key.replace('_', ' ') | title }}</div>
             </div>
             {% endfor %}
         </div>
+
+        {% if metrics.tables.open_by_state %}
+        <h3>Open by State</h3>
+        <div class="open-by-state-list" style="padding-left: 2em; margin-bottom: 2em;">
+        {% for item in metrics.tables.open_by_state %}
+            <p style="margin: 0.2em 0;">{{ item.state }} &mdash; {{ item.count }} ({{ item.percent }}%)</p>
+        {% endfor %}
+        </div>
+        {% endif %}
 
         <h2>Charts</h2>
         {% for id, path in charts.items() %}
@@ -111,32 +122,52 @@
         <div class="page-break"></div>
 
         <h2>Data Tables</h2>
-        {% for name, data in metrics.tables.items() %}
+        {% for name, table_data in metrics.tables.items() %}
+        {% if name != 'open_by_state' %}
         <div class="table-container">
             <h3>{{ name.replace('_', ' ') | title }}</h3>
-            {% if data %}
+            {% if table_data %}
             <table>
                 <thead>
                     <tr>
-                        {% for header in data[0] %}
-                        <th>{{ header | title }}</th>
+                        {% for header in table_data[0].keys() %}
+                        <th>{{ header.replace('_', ' ') | title }}</th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in data[1:] %}
+                    {% for row in table_data %}
                     <tr>
-                        {% for cell in row %}
-                        <td>{{ cell }}</td>
+                        {% for key in table_data[0].keys() %}
+                        <td>{{ row[key] }}</td>
                         {% endfor %}
                     </tr>
                     {% endfor %}
                 </tbody>
+                {% if 'count' in table_data[0].keys() %}
+                <tfoot>
+                    <tr>
+                        {% set headers = table_data[0].keys() | list %}
+                        {% for header in headers %}
+                            {% if loop.first and header != 'count' %}
+                                <td><strong>Total</strong></td>
+                            {% elif loop.first and header == 'count' %}
+                                <td><strong>Total: {{ table_data | sum(attribute='count') }}</strong></td>
+                            {% elif header == 'count' %}
+                                <td><strong>{{ table_data | sum(attribute='count') }}</strong></td>
+                            {% else %}
+                                <td></td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+                {% endif %}
             </table>
             {% else %}
             <p>No data available.</p>
             {% endif %}
         </div>
+        {% endif %}
         {% endfor %}
     </div>
 
