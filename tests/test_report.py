@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import docx
@@ -12,25 +11,41 @@ from zn_report.charts import render_charts
 from zn_report.config import Style, Palette
 from tests.helpers import check_golden_file_hash
 
+
 @pytest.fixture(scope="session")
 def sample_config() -> Config:
     """Return a sample Config object."""
     return load_config({"title": "Test Report", "branding": {"footer": "Test Footer"}})
+
 
 @pytest.fixture(scope="session")
 def processed_metrics(shared_df: pd.DataFrame) -> dict:
     """Provides a sample metrics dictionary derived from the shared DataFrame."""
     return compute_metrics(shared_df, start="2025-07-01", end="2025-07-31", tz="UTC")
 
+
 @pytest.fixture(scope="session")
 def chart_style() -> Style:
     """Provides a default Style object for tests."""
-    return Style(palette=Palette(primary="#000000", secondary="#444444", accent="#ff0000", muted="#888888", categorical=["#ff0000", "#00ff00", "#0000ff"]), font_family="sans-serif")
+    return Style(
+        palette=Palette(
+            primary="#000000",
+            secondary="#444444",
+            accent="#ff0000",
+            muted="#888888",
+            categorical=["#ff0000", "#00ff00", "#0000ff"],
+        ),
+        font_family="sans-serif",
+    )
+
 
 @pytest.fixture
-def sample_chart_paths(processed_metrics: dict, chart_style: Style, tmp_path: Path) -> dict[str, Path]:
+def sample_chart_paths(
+    processed_metrics: dict, chart_style: Style, tmp_path: Path
+) -> dict[str, Path]:
     """Create real chart files based on processed metrics."""
     return render_charts(processed_metrics, chart_style, tmp_path)
+
 
 def _verify_docx(path: Path, metrics: dict):
     """Verify the content of the generated DOCX file."""
@@ -50,10 +65,10 @@ def _verify_docx(path: Path, metrics: dict):
     # This is more robust to formatting changes in the template.
     kpis = metrics["kpis"]
     assert "Resolved Count" in all_text
-    assert str(kpis['resolved_count']) in all_text
+    assert str(kpis["resolved_count"]) in all_text
 
     assert "Avg Ttr Hours" in all_text
-    assert str(kpis['avg_ttr_hours']) in all_text
+    assert str(kpis["avg_ttr_hours"]) in all_text
 
     # Verify presence of table titles (which are also chart titles)
     assert "Resolved By Assignee" in all_text
@@ -64,6 +79,7 @@ def _verify_docx(path: Path, metrics: dict):
     # There are 5 charts defined in charts.py
     image_count = len(doc.inline_shapes)
     assert image_count == 5
+
 
 def test_assemble_report(
     tmp_path: Path,

@@ -94,7 +94,26 @@
         <div class="kpi-grid">
             {% for key, value in metrics.kpis.items() %}
             <div class="kpi-card">
-                <div class="value">{{ value }}</div>
+                <div class="value">
+                    {%- if key == 'avg_ttr_hours' -%}
+                        {{ value }} hours
+                    {%- elif key == 'open_by_state' -%}
+                        <div style="text-align: left; font-size: 0.5em; font-weight: normal;">
+                        {% if metrics.kpis.total_open_tickets > 0 %}
+                            {% for state, count in value.items() %}
+                                {% if count > 0 %}
+                                    {% set percent = (count / metrics.kpis.total_open_tickets) * 100 %}
+                                    {{ state }} &mdash; {{ count }} ({{ "%.1f" % percent }}%)<br>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            No open tickets
+                        {% endif %}
+                        </div>
+                    {%- else -%}
+                        {{ value }}
+                    {%- endif -%}
+                </div>
                 <div class="label">{{ key.replace('_', ' ') | title }}</div>
             </div>
             {% endfor %}
@@ -118,16 +137,16 @@
             <table>
                 <thead>
                     <tr>
-                        {% for header in data[0] %}
-                        <th>{{ header | title }}</th>
+                        {% for header in data[0].keys() %}
+                        <th>{{ header.replace('_', ' ') | title }}</th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in data[1:] %}
+                    {% for row in data %}
                     <tr>
-                        {% for cell in row %}
-                        <td>{{ cell }}</td>
+                        {% for header in data[0].keys() %}
+                        <td>{{ row[header] }}</td>
                         {% endfor %}
                     </tr>
                     {% endfor %}
