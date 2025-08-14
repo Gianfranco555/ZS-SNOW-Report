@@ -30,3 +30,13 @@ layout:
   show_resolution_codes_chart: true
   # "show_top_tags_chart" toggles the visibility of the top tags chart.
   show_top_tags_chart: true
+
+# "summary" configures the automated summary generation.
+summary:
+  # "enabled" toggles the summary feature on or off.
+  enabled: true
+  # "provider" selects the summary generation engine.
+  # Can be "none", "local", or "openai".
+  provider: "local"
+  # "max_chars" sets the maximum length of the generated summary.
+  max_chars: 700
