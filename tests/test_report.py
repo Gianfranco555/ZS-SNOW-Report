@@ -106,7 +106,7 @@ def test_assemble_report(
     # Set SOURCE_DATE_EPOCH for deterministic PDF generation
     os.environ["SOURCE_DATE_EPOCH"] = "1672531200"  # 2023-01-01
 
-    template_path = Path("templates/report.html.j2")
+    template_path = Path("zn_report/templates/report.html.j2")
 
     # --- Test PDF Generation ---
     pdf_output_path = tmp_path / "report.pdf"

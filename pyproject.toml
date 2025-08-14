@@ -13,3 +13,4 @@ zn-report = "zn_report.cli:cli_main"
 
 [tool.setuptools]
 packages = ["zn_report"]
+package-data = {zn_report = ["templates/*"]}

@@ -91,7 +91,7 @@ def test_cli_missing_headers():
     result = run_cli(args)
 
     assert result.returncode == 2
-    assert "Missing required columns in CSV" in result.stdout
+    assert "Missing required headers" in result.stdout
 
 
 def test_cli_all_rows_dropped():
