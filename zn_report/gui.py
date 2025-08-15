@@ -8,7 +8,8 @@ from zn_report.cli import run_report_workflow, setup_logging
 from zn_report.exceptions import CLIError
 
 # Set up logging to capture messages from the workflow
-setup_logging("INFO")
+DEFAULT_LOG_LEVEL = "INFO"
+setup_logging(DEFAULT_LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 
