@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 
 [project.scripts]
 zn-report = "zn_report.cli:cli_main"
+zn-report-gui = "zn_report.gui:main"
 
 [tool.setuptools]
 packages = ["zn_report"]
