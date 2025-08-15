@@ -35,12 +35,8 @@ def _parse_args():
     parser.add_argument(
         "--csv", required=True, help="Path to the input ServiceNow CSV export."
     )
-    parser.add_argument(
-        "--start", required=True, help="The report start date (YYYY-MM-DD)."
-    )
-    parser.add_argument(
-        "--end", required=True, help="The report end date (YYYY-MM-DD)."
-    )
+    parser.add_argument("--start", help="The report start date (YYYY-MM-DD).")
+    parser.add_argument("--end", help="The report end date (YYYY-MM-DD).")
     parser.add_argument(
         "--out", default="./report.pdf", help="Path to the output report file."
     )
@@ -116,12 +112,27 @@ def run_report_workflow(args):
     logger.info(f"Loaded {len(df)} rows; tz={args.tz}")
 
     # 3. Time Operations
-    start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
-    end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
     df = time_ops.parse_dates(df, tz=args.tz)
+    if args.start and args.end:
+        start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
+        end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
+    else:
+        start_date = df["opened_at"].min().date()
+        end_date = df["opened_at"].max().date()
+        logger.info(f"Auto-detected date range: {start_date} to {end_date}")
+
     if df["opened_at"].isna().all():
         raise AllRowsDroppedError()
-
+        # Validate DataFrame is not empty and has at least one valid 'opened_at' value
+        if df.empty or df["opened_at"].isna().all():
+            raise AllRowsDroppedError()
+        start_val = df["opened_at"].min()
+        end_val = df["opened_at"].max()
+        if pd.isna(start_val) or pd.isna(end_val):
+            raise AllRowsDroppedError()
+        start_date = start_val.date()
+        end_date = end_val.date()
+        logger.info(f"Auto-detected date range: {start_date} to {end_date}")
     # 4. Metrics Computation
     computed_metrics = metrics.compute_metrics(df, start_date, end_date, tz=args.tz)
     dropped = computed_metrics["metadata"]["dropped"]
@@ -176,15 +187,23 @@ def cli_main():
 
     try:
         # --- Argument Validation ---
-        try:
-            start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
-            end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
-            if start_date > end_date:
+        if (args.start and not args.end) or (args.end and not args.start):
+            raise InvalidArgumentsError(
+                "Both --start and --end must be provided for manual date ranges."
+            )
+
+        if args.start and args.end:
+            try:
+                start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
+                end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
+                if start_date > end_date:
+                    raise InvalidArgumentsError(
+                        f"Start date ({args.start}) cannot be after end date ({args.end})."
+                    )
+            except ValueError:
                 raise InvalidArgumentsError(
-                    f"Start date ({args.start}) cannot be after end date ({args.end})."
+                    "Invalid date format. Please use YYYY-MM-DD."
                 )
-        except ValueError:
-            raise InvalidArgumentsError("Invalid date format. Please use YYYY-MM-DD.")
 
         # --- Run Core Workflow ---
         run_report_workflow(args)
