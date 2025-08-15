@@ -56,7 +56,16 @@ class ReportApp:
             messagebox.showerror("Error", "Please select a CSV file first.")
             return
 
-        output_path = Path.home() / "ZS_SNOW_Report.pdf"
+        output_path = filedialog.asksaveasfilename(
+            title="Save Report As",
+            defaultextension=".pdf",
+            filetypes=(("PDF files", "*.pdf"), ("All files", "*.*")),
+            initialdir=str(Path.home()),
+            initialfile="ZS_SNOW_Report.pdf"
+        )
+        if not output_path:
+            # User cancelled the save dialog
+            return
 
         args = SimpleNamespace(
             csv=csv_file,
