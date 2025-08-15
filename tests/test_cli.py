@@ -64,6 +64,39 @@ def test_cli_invalid_date_range():
     )
 
 
+def test_cli_auto_dates_is_default(tmp_path):
+    """Test a successful run with the default auto-date behavior."""
+    output_pdf = tmp_path / "report.pdf"
+    args = [
+        "--csv",
+        str(VALID_CSV),
+        "--out",
+        str(output_pdf),
+    ]
+
+    result = run_cli(args)
+
+    assert result.returncode == 0
+    assert output_pdf.exists()
+    assert "Auto-detected date range: 2025-07-15 to 2025-07-17" in result.stdout
+    assert "Metrics: resolved=2" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--csv", str(VALID_CSV), "--start", "2025-07-01"],
+        ["--csv", str(VALID_CSV), "--end", "2025-07-31"],
+    ],
+)
+def test_cli_partial_dates_fail(args):
+    """Test that the CLI fails if only one of two date arguments is provided."""
+    result = run_cli(args)
+
+    assert result.returncode == 2
+    assert "Both --start and --end must be provided" in result.stdout
+
+
 def test_cli_csv_not_found():
     """Test that the CLI exits with code 5 if the CSV file is not found."""
     non_existent_csv = "non_existent_file.csv"
@@ -135,10 +168,6 @@ def test_cli_render_failure(monkeypatch, caplog):
             "zn-report",
             "--csv",
             str(VALID_CSV),
-            "--start",
-            "2025-07-01",
-            "--end",
-            "2025-07-31",
         ],
     )
 
@@ -175,10 +204,6 @@ def test_cli_io_error_during_processing(monkeypatch, caplog):
             "zn-report",
             "--csv",
             str(VALID_CSV),  # File exists, but will fail during read
-            "--start",
-            "2025-07-01",
-            "--end",
-            "2025-07-31",
         ],
     )
 
