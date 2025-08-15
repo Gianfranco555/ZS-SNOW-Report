@@ -200,7 +200,7 @@ def cli_main():
                     raise InvalidArgumentsError(
                         f"Start date ({args.start}) cannot be after end date ({args.end})."
                     )
-            except (ValueError, TypeError):
+            except ValueError:
                 raise InvalidArgumentsError(
                     "Invalid date format. Please use YYYY-MM-DD."
                 )
