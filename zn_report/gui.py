@@ -72,7 +72,9 @@ class ReportApp:
 
     def _worker_generate_report(self, csv_file):
         try:
-            output_path = Path.home() / "ZS_SNOW_Report.pdf"
+            # TODO: Consider making this configurable
+            output_path = Path.home() / "Downloads" / "ZS_SNOW_Report.pdf"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             args = SimpleNamespace(
                 csv=csv_file,
                 out=str(output_path),
