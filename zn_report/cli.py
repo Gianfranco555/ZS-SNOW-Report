@@ -117,19 +117,16 @@ def run_report_workflow(args):
         start_date = datetime.strptime(args.start, "%Y-%m-%d").date()
         end_date = datetime.strptime(args.end, "%Y-%m-%d").date()
     else:
-        start_date = df["opened_at"].min().date()
-        end_date = df["opened_at"].max().date()
-        logger.info(f"Auto-detected date range: {start_date} to {end_date}")
-
-    if df["opened_at"].isna().all():
-        raise AllRowsDroppedError()
         # Validate DataFrame is not empty and has at least one valid 'opened_at' value
         if df.empty or df["opened_at"].isna().all():
             raise AllRowsDroppedError()
+
         start_val = df["opened_at"].min()
         end_val = df["opened_at"].max()
+
         if pd.isna(start_val) or pd.isna(end_val):
             raise AllRowsDroppedError()
+
         start_date = start_val.date()
         end_date = end_val.date()
         logger.info(f"Auto-detected date range: {start_date} to {end_date}")
