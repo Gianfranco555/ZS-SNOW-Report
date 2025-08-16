@@ -72,7 +72,17 @@ class ReportApp:
 
     def _worker_generate_report(self, csv_file):
         try:
-            output_path = Path.home() / "ZS_SNOW_Report.pdf"
+            # TODO: Consider making this configurable
+            output_path = Path.home() / "Downloads" / "ZS_SNOW_Report.pdf"
+            downloads_dir = output_path.parent
+            if not downloads_dir.exists():
+                try:
+                    downloads_dir.mkdir(parents=True, exist_ok=True)
+                except Exception as e:
+                    self.result_queue.put(("error", Exception(
+                        f"Could not create the Downloads directory at '{downloads_dir}': {e}"
+                    )))
+                    return
             args = SimpleNamespace(
                 csv=csv_file,
                 out=str(output_path),
